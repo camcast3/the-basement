@@ -1,0 +1,327 @@
+# setup-proxmox-host.yaml
+# Based on: https://technotim.com/posts/first-11-things-proxmox/
+#
+# Configures freshly-installed Proxmox 8.x/9.x hosts with:
+#   1. No-subscription apt repos (disable enterprise repo)
+#   2. System updates + dist-upgrade
+#   3. IOMMU / PCI passthrough (GRUB or systemd-boot)
+#   4. VFIO kernel modules
+#   5. VLAN-aware bridge
+#   6. SMTP email alerts via postfix (Gmail app password)
+#   7. SMART monitoring enabled
+#
+# Usage:
+#   ansible-playbook -i inventory/inventory-ini playbooks/setup-proxmox-host.yaml
+#
+# Per-host variables (set in inventory or extra vars):
+#   cpu_vendor: intel | amd  (default: intel)
+#   smtp_relay_email: Gmail address for sending alerts
+#   smtp_relay_password: Gmail app password
+#   alert_recipient: Email to receive alerts
+#   proxmox_alert_from_name: Friendly name in alert emails (default: pve-alert)
+#   enable_iommu: true | false (default: true)
+#   enable_vlan_aware: true | false (default: true)
+#   enable_email_alerts: true | false (default: false — requires smtp credentials)
+---
+- name: First Things to Do on Proxmox (Techno Tim)
+  hosts: proxmox
+  become: true
+  vars:
+    cpu_vendor: "intel"
+    enable_iommu: true
+    enable_vlan_aware: true
+    enable_email_alerts: false
+    smtp_relay_email: ""
+    smtp_relay_password: ""
+    alert_recipient: ""
+    proxmox_alert_from_name: "pve-alert"
+  tasks:
+    # =========================================================================
+    # 1. APT Repositories — switch to no-subscription
+    # =========================================================================
+
+    # Auto-detect codename from the host (bookworm = PVE 8, trixie = PVE 9)
+    - name: Detect Debian codename
+      ansible.builtin.shell: ". /etc/os-release && echo $VERSION_CODENAME"
+      register: detected_codename
+      changed_when: false
+
+    - name: Set codename fact
+      ansible.builtin.set_fact:
+        proxmox_codename: "{{ detected_codename.stdout | trim }}"
+
+    # Determine ceph repo name based on codename
+    - name: Set ceph repo name
+      ansible.builtin.set_fact:
+        ceph_repo_name: "{{ 'ceph-squid' if proxmox_codename == 'trixie' else 'ceph-quincy' }}"
+
+    # --- Disable enterprise .list files ---
+    - name: Disable enterprise repository (.list)
+      ansible.builtin.copy:
+        content: |
+          # Enterprise repo disabled — no subscription
+          # deb https://enterprise.proxmox.com/debian/pve {{ proxmox_codename }} pve-enterprise
+        dest: /etc/apt/sources.list.d/pve-enterprise.list
+        mode: "0644"
+
+    - name: Add pve-no-subscription repository
+      ansible.builtin.copy:
+        content: |
+          # PVE pve-no-subscription repository provided by proxmox.com
+          # NOT recommended for production use
+          deb http://download.proxmox.com/debian/pve {{ proxmox_codename }} pve-no-subscription
+        dest: /etc/apt/sources.list.d/pve-no-subscription.list
+        mode: "0644"
+
+    - name: Disable ceph enterprise repository (.list)
+      ansible.builtin.copy:
+        content: |
+          # Ceph enterprise repo disabled — no subscription
+          # deb https://enterprise.proxmox.com/debian/{{ ceph_repo_name }} {{ proxmox_codename }} enterprise
+        dest: /etc/apt/sources.list.d/ceph.list
+        mode: "0644"
+
+    # --- Disable enterprise .sources files (PVE 9+ DEB822 format) ---
+    - name: Check for pve-enterprise.sources
+      ansible.builtin.stat:
+        path: /etc/apt/sources.list.d/pve-enterprise.sources
+      register: pve_enterprise_sources
+
+    - name: Disable enterprise repository (.sources)
+      ansible.builtin.copy:
+        content: |
+          # Enterprise repo disabled — no subscription
+          # Types: deb
+          # URIs: https://enterprise.proxmox.com/debian/pve
+          # Suites: {{ proxmox_codename }}
+          # Components: pve-enterprise
+        dest: /etc/apt/sources.list.d/pve-enterprise.sources
+        mode: "0644"
+      when: pve_enterprise_sources.stat.exists
+
+    - name: Check for ceph.sources
+      ansible.builtin.stat:
+        path: /etc/apt/sources.list.d/ceph.sources
+      register: ceph_sources
+
+    - name: Disable ceph enterprise repository (.sources)
+      ansible.builtin.copy:
+        content: |
+          # Ceph enterprise repo disabled — no subscription
+          # Types: deb
+          # URIs: https://enterprise.proxmox.com/debian/{{ ceph_repo_name }}
+          # Suites: {{ proxmox_codename }}
+          # Components: enterprise
+        dest: /etc/apt/sources.list.d/ceph.sources
+        mode: "0644"
+      when: ceph_sources.stat.exists
+
+    # =========================================================================
+    # 2. System Updates
+    # =========================================================================
+    - name: Update apt cache
+      ansible.builtin.apt:
+        update_cache: true
+
+    - name: Dist-upgrade all packages
+      ansible.builtin.apt:
+        upgrade: dist
+        autoremove: true
+        autoclean: true
+
+    # =========================================================================
+    # 3. IOMMU / PCI Passthrough
+    # =========================================================================
+    - name: Detect boot manager
+      ansible.builtin.command: efibootmgr -v
+      register: efi_check
+      changed_when: false
+      failed_when: false
+
+    - name: Set boot manager fact
+      ansible.builtin.set_fact:
+        boot_manager: >-
+          {{ 'systemd-boot' if (efi_check.rc == 0 and 'systemd' in efi_check.stdout)
+             else 'grub' }}
+
+    # --- GRUB path ---
+    - name: Read current GRUB config
+      ansible.builtin.slurp:
+        src: /etc/default/grub
+      register: grub_config
+      when: enable_iommu and boot_manager == 'grub'
+
+    - name: Build IOMMU kernel params (GRUB)
+      ansible.builtin.set_fact:
+        iommu_params: "{{ 'intel_iommu=on iommu=pt' if cpu_vendor == 'intel' else 'iommu=pt' }}"
+      when: enable_iommu and boot_manager == 'grub'
+
+    - name: Enable IOMMU in GRUB
+      ansible.builtin.lineinfile:
+        path: /etc/default/grub
+        regexp: '^GRUB_CMDLINE_LINUX_DEFAULT='
+        line: 'GRUB_CMDLINE_LINUX_DEFAULT="quiet {{ iommu_params }}"'
+      register: grub_changed
+      when: enable_iommu and boot_manager == 'grub'
+
+    - name: Update GRUB
+      ansible.builtin.command: update-grub
+      when: enable_iommu and boot_manager == 'grub' and grub_changed.changed
+
+    # --- systemd-boot path ---
+    - name: Read current kernel cmdline (systemd-boot)
+      ansible.builtin.slurp:
+        src: /etc/kernel/cmdline
+      register: kernel_cmdline
+      when: enable_iommu and boot_manager == 'systemd-boot'
+
+    - name: Build IOMMU kernel params (systemd-boot)
+      ansible.builtin.set_fact:
+        iommu_params_sd: "{{ 'intel_iommu=on iommu=pt' if cpu_vendor == 'intel' else 'iommu=pt' }}"
+      when: enable_iommu and boot_manager == 'systemd-boot'
+
+    - name: Enable IOMMU in kernel cmdline (systemd-boot)
+      ansible.builtin.copy:
+        content: "{{ (kernel_cmdline['content'] | b64decode | trim) + ' ' + iommu_params_sd }}\n"
+        dest: /etc/kernel/cmdline
+        mode: "0644"
+      register: cmdline_changed
+      when: >
+        enable_iommu and boot_manager == 'systemd-boot'
+        and iommu_params_sd not in (kernel_cmdline['content'] | b64decode)
+
+    - name: Refresh systemd-boot
+      ansible.builtin.command: pve-efiboot-tool refresh
+      when: enable_iommu and boot_manager == 'systemd-boot' and cmdline_changed.changed | default(false)
+
+    # =========================================================================
+    # 4. VFIO Kernel Modules
+    # =========================================================================
+    - name: Load VFIO modules on boot
+      ansible.builtin.copy:
+        content: |
+          vfio
+          vfio_iommu_type1
+          vfio_pci
+        dest: /etc/modules-load.d/vfio.conf
+        mode: "0644"
+      register: vfio_modules
+      when: enable_iommu
+
+    - name: Update initramfs
+      ansible.builtin.command: update-initramfs -u -k all
+      when: enable_iommu and vfio_modules.changed
+
+    # =========================================================================
+    # 5. VLAN-Aware Bridge
+    # =========================================================================
+    - name: Check if vmbr0 exists in interfaces
+      ansible.builtin.command: grep -q 'vmbr0' /etc/network/interfaces
+      register: vmbr0_exists
+      changed_when: false
+      failed_when: false
+
+    - name: Enable VLAN awareness on vmbr0
+      ansible.builtin.lineinfile:
+        path: /etc/network/interfaces
+        insertafter: 'bridge-fd 0'
+        line: "        bridge-vlan-aware yes"
+      when: enable_vlan_aware and vmbr0_exists.rc == 0
+      register: vlan_changed
+
+    # =========================================================================
+    # 6. SMART Monitoring
+    # =========================================================================
+    - name: Ensure smartmontools is installed
+      ansible.builtin.apt:
+        name: smartmontools
+        state: present
+
+    - name: Enable smartd service
+      ansible.builtin.systemd:
+        name: smartd
+        state: started
+        enabled: true
+
+    # =========================================================================
+    # 7. Email Alerts (Gmail SMTP)
+    # =========================================================================
+    - name: Install postfix alert dependencies
+      ansible.builtin.apt:
+        name:
+          - libsasl2-modules
+          - mailutils
+          - postfix-pcre
+        state: present
+      when: enable_email_alerts
+
+    - name: Create SASL password file
+      ansible.builtin.copy:
+        content: "smtp.gmail.com:587 {{ smtp_relay_email }}:{{ smtp_relay_password }}\n"
+        dest: /etc/postfix/sasl_passwd
+        mode: "0600"
+      register: sasl_passwd
+      when: enable_email_alerts and smtp_relay_email != '' and smtp_relay_password != ''
+
+    - name: Hash SASL password file
+      ansible.builtin.command: postmap hash:/etc/postfix/sasl_passwd
+      when: enable_email_alerts and sasl_passwd.changed | default(false)
+
+    - name: Configure postfix for Gmail relay
+      ansible.builtin.blockinfile:
+        path: /etc/postfix/main.cf
+        marker: "# {mark} ANSIBLE MANAGED - Gmail SMTP relay"
+        block: |
+          relayhost = smtp.gmail.com:587
+          smtp_use_tls = yes
+          smtp_sasl_auth_enable = yes
+          smtp_sasl_security_options =
+          smtp_sasl_password_maps = hash:/etc/postfix/sasl_passwd
+          smtp_tls_CAfile = /etc/ssl/certs/ca-certificates.crt
+          smtp_tls_session_cache_database = btree:/var/lib/postfix/smtp_tls_session_cache
+          smtp_tls_session_cache_timeout = 3600s
+          smtp_header_checks = pcre:/etc/postfix/smtp_header_checks
+      register: postfix_config
+      when: enable_email_alerts
+
+    - name: Set friendly sender name in postfix
+      ansible.builtin.copy:
+        content: |
+          /^From:.*/ REPLACE From: {{ proxmox_alert_from_name }} <{{ smtp_relay_email }}>
+        dest: /etc/postfix/smtp_header_checks
+        mode: "0644"
+      register: header_checks
+      when: enable_email_alerts
+
+    - name: Hash header checks file
+      ansible.builtin.command: postmap hash:/etc/postfix/smtp_header_checks
+      when: enable_email_alerts and header_checks.changed | default(false)
+
+    - name: Reload postfix
+      ansible.builtin.systemd:
+        name: postfix
+        state: reloaded
+      when: enable_email_alerts and (postfix_config.changed | default(false) or sasl_passwd.changed | default(false) or header_checks.changed | default(false))
+
+    # =========================================================================
+    # Summary
+    # =========================================================================
+    - name: Display summary
+      ansible.builtin.debug:
+        msg: |
+          ========================================
+          Proxmox host {{ inventory_hostname }} configured!
+
+          ✅ APT repos: pve-no-subscription enabled, enterprise disabled
+          ✅ System updated (dist-upgrade)
+          ✅ IOMMU: {{ 'enabled (' + cpu_vendor + ')' if enable_iommu else 'skipped' }}
+          ✅ Boot manager: {{ boot_manager }}
+          ✅ VFIO modules: {{ 'loaded' if enable_iommu else 'skipped' }}
+          ✅ VLAN-aware bridge: {{ 'enabled' if enable_vlan_aware else 'skipped' }}
+          ✅ SMART monitoring: enabled
+          ✅ Email alerts: {{ 'configured' if enable_email_alerts else 'skipped (set enable_email_alerts=true)' }}
+
+          {% if enable_iommu and (grub_changed.changed | default(false) or cmdline_changed.changed | default(false) or vfio_modules.changed | default(false)) %}
+          ⚠️  REBOOT REQUIRED for IOMMU/VFIO changes to take effect!
+          {% endif %}
+          ========================================

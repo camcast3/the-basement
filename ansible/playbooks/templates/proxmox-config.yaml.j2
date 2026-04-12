@@ -1,0 +1,6 @@
+proxmox:
+  url: "{{ proxmox_url }}"
+  username: {{ proxmox_username }}
+  password: {{ proxmox_password }}
+  realm: pam
+  insecureSkipVerify: {{ proxmox_insecure_skip_verify | lower }}

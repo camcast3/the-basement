@@ -1,0 +1,81 @@
+# Omni On-Prem — Portainer Stack
+#
+# Deploy this as a Portainer stack on a dedicated Docker host (Proxmox VM).
+# Traefik terminates TLS for the web UI on port 8080.
+# Omni handles its own TLS for machine-facing ports (8090, 8100).
+#
+# Required files on the host (see .env.example for paths):
+#   - omni.asc          GPG key for etcd encryption
+#   - fullchain.pem     TLS certificate (for machine-facing ports)
+#   - privkey.pem       TLS private key
+#
+# Proxmox provider is optional — comment out or remove if not needed.
+# It requires a service account key generated from Omni UI after first start.
+
+services:
+  omni:
+    image: ghcr.io/siderolabs/omni:${OMNI_VERSION:-latest}
+    container_name: omni
+    restart: unless-stopped
+    ports:
+      - "${OMNI_HTTP_PORT:-8080}:${OMNI_HTTP_PORT:-8080}"       # Web UI (Traefik proxies here)
+      - "8090:8090"                                               # SideroLink API (TLS)
+      - "8091:8091"                                               # Event sink
+      - "8100:8100"                                               # Kubernetes proxy (TLS)
+      - "50180:50180/udp"                                         # WireGuard
+    networks:
+      - omni-network
+    devices:
+      - /dev/net/tun
+    cap_add:
+      - NET_ADMIN
+    volumes:
+      - ${OMNI_DATA_DIR:-/opt/omni}/etcd:/_out/etcd
+      - ${OMNI_DATA_DIR:-/opt/omni}/omni.asc:/omni.asc:ro
+      - ${OMNI_DATA_DIR:-/opt/omni}:/data
+      - ${OMNI_DATA_DIR:-/opt/omni}/certs/fullchain.pem:/tls.crt:ro
+      - ${OMNI_DATA_DIR:-/opt/omni}/certs/privkey.pem:/tls.key:ro
+    command: >
+      --account-id=${OMNI_ACCOUNT_UUID}
+      --name=omni
+      --cert=/tls.crt
+      --key=/tls.key
+      --machine-api-cert=/tls.crt
+      --machine-api-key=/tls.key
+      --private-key-source=file:///omni.asc
+      --event-sink-port=8091
+      --bind-addr=:${OMNI_HTTP_PORT:-8080}
+      --machine-api-bind-addr=:8090
+      --k8s-proxy-bind-addr=:8100
+      --advertised-api-url=https://${OMNI_DOMAIN}
+      --advertised-kubernetes-proxy-url=https://${OMNI_DOMAIN}:8100
+      --siderolink-api-advertised-url=https://${OMNI_DOMAIN}:8090
+      --siderolink-wireguard-advertised-addr=${OMNI_WIREGUARD_IP}:50180
+      --initial-users=${OMNI_ADMIN_EMAIL}
+      --auth-auth0-enabled=false
+      --auth-saml-enabled=true
+      --auth-saml-url=${SAML_METADATA_URL}
+      --sqlite-storage-path=/data/omni.db
+      --etcd-embedded=true
+      --etcd-embedded-unsafe-fsync=false
+
+  omni-proxmox-provider:
+    image: ghcr.io/siderolabs/omni-infra-provider-proxmox:${PROXMOX_PROVIDER_VERSION:-latest}
+    container_name: omni-proxmox-provider
+    restart: unless-stopped
+    depends_on:
+      - omni
+    networks:
+      - omni-network
+    volumes:
+      - ${OMNI_DATA_DIR:-/opt/omni}/proxmox-config.yaml:/config.yaml:ro
+    command: >
+      --config-file /config.yaml
+      --omni-api-endpoint grpc://omni:8080
+      --omni-service-account-key ${OMNI_SERVICE_ACCOUNT_KEY}
+      --insecure-skip-verify
+      --id proxmox_provider
+
+networks:
+  omni-network:
+    driver: bridge

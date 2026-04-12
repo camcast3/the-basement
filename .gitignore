@@ -1,0 +1,18 @@
+# Ansible
+ansible/inventory/inventory-ini
+ansible/inventory/inventory.yml
+ansible/inventory/hosts
+ansible/*.retry
+
+# Docker secrets
+docker/**/.env
+!docker/**/.env.example
+
+# SSH keys
+*.pem
+*.key
+id_*
+
+# OS files
+.DS_Store
+Thumbs.db

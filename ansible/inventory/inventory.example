@@ -1,0 +1,51 @@
+# Example inventory for Omni and Authentik deployment
+# Copy this file and customize with your server details
+
+[omni]
+# Dedicated Docker host for Omni (Proxmox VM with Docker + Portainer)
+# A dedicated host is required because TrueNAS Shell restricts commands
+# like GPG key generation and local cert storage.
+omni-host ansible_host=192.168.86.XXX ansible_user=admin
+
+[omni:vars]
+ansible_python_interpreter=/usr/bin/python3
+
+# Omni configuration
+omni_domain_name=omni.local.example.com
+omni_admin_email=admin@example.com
+omni_install_dir=/opt/omni
+
+# Proxmox provider (optional — set after Omni is running)
+enable_proxmox_provider=true
+proxmox_cluster_name=proxmox-cluster
+proxmox_url=https://proxmox.example.com:8006/api2/json
+proxmox_username=root@pam
+# proxmox_password=  # Pass via extra vars or ansible-vault
+
+[ubuntu_servers]
+# All Ubuntu-based hosts that need Docker installed via setup-new-host.yaml
+# The Omni host should also be listed here for Docker provisioning
+omni-host ansible_host=192.168.86.XXX ansible_user=your-user ansible_ssh_private_key_file=~/.ssh/id_ed25519
+# server1 ansible_host=192.168.86.217 ansible_user=your-user ansible_ssh_private_key_file=~/.ssh/id_rsa
+
+[ubuntu_servers:vars]
+ansible_python_interpreter=/usr/bin/python3
+
+[proxmox]
+# Proxmox VE hosts (connect as root)
+pve1 ansible_host=192.168.86.2 ansible_user=root
+pve2 ansible_host=192.168.86.3 ansible_user=root
+pve3 ansible_host=192.168.86.4 ansible_user=root
+
+[proxmox:vars]
+ansible_python_interpreter=/usr/bin/python3
+# CPU vendor: intel or amd (affects IOMMU params)
+cpu_vendor=intel
+# Per-host override example:
+# pve1 ansible_host=192.168.86.2 ansible_user=root cpu_vendor=amd
+
+# Email alerts (optional — requires Gmail app password)
+# smtp_relay_email=alerts@gmail.com
+# smtp_relay_password=xxxx-xxxx-xxxx-xxxx
+# alert_recipient=you@example.com
+# enable_email_alerts=true

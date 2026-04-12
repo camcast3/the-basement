@@ -1,0 +1,194 @@
+---
+- name: Prepare Host for Omni On-Prem (Portainer Stack)
+  hosts: omni
+  become: true
+  vars:
+    omni_domain_name: "omni.local.example.com"
+    omni_admin_email: "admin@example.com"
+    omni_install_dir: "/opt/omni"
+    # Proxmox provider config (optional — set via extra vars)
+    enable_proxmox_provider: true
+    proxmox_cluster_name: "proxmox-cluster"
+    proxmox_url: ""
+    proxmox_username: "root@pam"
+    proxmox_password: ""
+    proxmox_insecure_skip_verify: "false"
+
+  tasks:
+    # Prerequisites check
+    - name: Check if Docker is installed
+      ansible.builtin.command: docker --version
+      register: docker_check
+      changed_when: false
+      failed_when: false
+
+    - name: Fail if Docker is not installed
+      ansible.builtin.fail:
+        msg: "Docker is not installed. Ensure Docker is available on the Omni host."
+      when: docker_check.rc != 0
+
+    # Create Omni directory structure
+    - name: Create Omni installation directory
+      ansible.builtin.file:
+        path: "{{ omni_install_dir }}"
+        state: directory
+        mode: "0755"
+
+    - name: Create Omni certificates directory
+      ansible.builtin.file:
+        path: "{{ omni_install_dir }}/certs"
+        state: directory
+        mode: "0755"
+
+    - name: Create Omni etcd data directory
+      ansible.builtin.file:
+        path: "{{ omni_install_dir }}/etcd"
+        state: directory
+        mode: "0755"
+
+    # SSL Certificate reminder
+    - name: Check for SSL certificates
+      ansible.builtin.stat:
+        path: "{{ omni_install_dir }}/certs/fullchain.pem"
+      register: ssl_cert
+
+    - name: Display SSL certificate warning
+      ansible.builtin.debug:
+        msg: |
+          WARNING: SSL certificates not found at {{ omni_install_dir }}/certs/
+          Omni requires TLS certificates for machine-facing ports (8090, 8100).
+          You need to provide:
+            - fullchain.pem (full certificate chain)
+            - privkey.pem (private key)
+          
+          Generate certificates using certbot or another ACME client:
+            sudo certbot certonly --standalone -d {{ omni_domain_name }}
+          
+          Then copy certificates to {{ omni_install_dir }}/certs/
+      when: not ssl_cert.stat.exists
+
+    # etcd encryption key setup
+    - name: Check if etcd encryption key exists
+      ansible.builtin.stat:
+        path: "{{ omni_install_dir }}/omni.asc"
+      register: encryption_key
+
+    - name: Install GPG if not present
+      ansible.builtin.apt:
+        name: gnupg
+        state: present
+      when: not encryption_key.stat.exists
+
+    - name: Configure GPG for unattended key generation
+      ansible.builtin.shell: |
+        mkdir -p /root/.gnupg
+        chmod 700 /root/.gnupg
+        echo "allow-loopback-pinentry" > /root/.gnupg/gpg-agent.conf
+        gpgconf --kill gpg-agent || true
+      when: not encryption_key.stat.exists
+
+    - name: Generate etcd encryption key
+      ansible.builtin.shell: |
+        set -e
+        export GPG_TTY=$(tty)
+        gpg --batch --passphrase '' --quick-generate-key \
+          "Omni (Used for etcd data encryption) omni@{{ omni_domain_name }}" \
+          rsa4096 cert never
+        FINGERPRINT=$(gpg --list-secret-keys --with-colons | grep fpr | head -n1 | cut -d: -f10)
+        gpg --batch --passphrase '' --quick-add-key $FINGERPRINT rsa4096 encr never
+        gpg --batch --export-secret-key --armor omni@{{ omni_domain_name }} > {{ omni_install_dir }}/omni.asc
+        chmod 600 {{ omni_install_dir }}/omni.asc
+      args:
+        creates: "{{ omni_install_dir }}/omni.asc"
+      environment:
+        GNUPGHOME: /root/.gnupg
+      when: not encryption_key.stat.exists
+
+    # Account UUID setup
+    - name: Check if account UUID file exists
+      ansible.builtin.stat:
+        path: "{{ omni_install_dir }}/.account_uuid"
+      register: uuid_file
+
+    - name: Generate Omni account UUID
+      ansible.builtin.command: uuidgen
+      register: account_uuid_new
+      changed_when: false
+      when: not uuid_file.stat.exists
+
+    - name: Save account UUID to file
+      ansible.builtin.copy:
+        content: "{{ account_uuid_new.stdout }}"
+        dest: "{{ omni_install_dir }}/.account_uuid"
+        mode: "0600"
+      when: not uuid_file.stat.exists
+
+    - name: Read account UUID from file
+      ansible.builtin.slurp:
+        src: "{{ omni_install_dir }}/.account_uuid"
+      register: account_uuid_file
+
+    - name: Set account UUID fact
+      ansible.builtin.set_fact:
+        account_uuid: "{{ account_uuid_file['content'] | b64decode | trim }}"
+
+    # Proxmox config (optional)
+    - name: Create Proxmox provider config file
+      ansible.builtin.template:
+        src: proxmox-config.yaml.j2
+        dest: "{{ omni_install_dir }}/proxmox-config.yaml"
+        mode: "0600"
+      when: enable_proxmox_provider | default(false) and proxmox_url != ''
+
+    # Display next steps
+    - name: Display next steps
+      ansible.builtin.debug:
+        msg: |
+          ========================================
+          Omni prerequisites are ready at: {{ omni_install_dir }}
+          Account UUID: {{ account_uuid }}
+          
+          NEXT STEPS — Deploy via Portainer:
+          
+          1. In Portainer, create a new Stack using docker/omni/compose.yaml
+             (from the repo or paste it in)
+          
+          2. Set these environment variables in the Portainer stack:
+             - OMNI_ACCOUNT_UUID={{ account_uuid }}
+             - OMNI_DOMAIN={{ omni_domain_name }}
+             - OMNI_ADMIN_EMAIL={{ omni_admin_email }}
+             - OMNI_DATA_DIR={{ omni_install_dir }}
+             - SAML_METADATA_URL=https://<authentik-domain>/application/saml/<slug>/metadata/
+          
+          3. Configure Traefik to proxy to this host on port 8080:
+          
+             http:
+               routers:
+                 omni:
+                   rule: "Host(`{{ omni_domain_name }}`)"
+                   entryPoints:
+                     - websecure
+                   service: omni
+                   tls:
+                     certResolver: cloudflare
+               services:
+                 omni:
+                   loadBalancer:
+                     servers:
+                       - url: "http://{{ ansible_default_ipv4.address | default('<omni-host-ip>') }}:8080"
+          
+          4. Ensure these ports are open on the Omni host firewall:
+             - 8080/tcp  (Omni UI — Traefik proxies here)
+             - 8090/tcp  (SideroLink API)
+             - 8091/tcp  (Event sink)
+             - 8100/tcp  (Kubernetes proxy)
+             - 50180/udp (WireGuard)
+          
+          5. Deploy the stack in Portainer and access Omni at:
+             https://{{ omni_domain_name }}
+          
+          6. After first login, create a service account (InfraProvider role)
+             in Omni → Settings → Service Accounts, then update the
+             OMNI_SERVICE_ACCOUNT_KEY in the Portainer stack to enable
+             the Proxmox provider.
+          ========================================

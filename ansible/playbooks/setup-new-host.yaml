@@ -1,0 +1,148 @@
+# install-docker-ubuntu.yml
+---
+- name: Update Ubuntu and Install Docker
+  hosts: ubuntu_servers
+  become: true
+  vars:
+    docker_users:
+      - "{{ ansible_user }}"
+    docker_compose_version: "2.24.5"
+
+  tasks:
+    # Step 1: Update system packages
+    - name: Update APT package index and upgrade system
+      ansible.builtin.apt:
+        update_cache: yes
+        upgrade: dist
+        autoremove: yes
+        autoclean: yes
+
+    # Step 2: Remove old Docker packages to avoid conflicts
+    - name: Remove old Docker packages
+      ansible.builtin.apt:
+        name:
+          - docker
+          - docker-engine
+          - docker.io
+          - containerd
+          - runc
+        state: absent
+        force: yes
+
+    # Step 3: Install prerequisites
+    - name: Install required APT packages
+      ansible.builtin.apt:
+        name:
+          - apt-transport-https
+          - ca-certificates
+          - curl
+          - gnupg
+          - lsb-release
+          - python3-pip
+        state: present
+        update_cache: yes
+
+    # Step 4: Add Docker's official GPG key
+    - name: Create directory for GPG key
+      ansible.builtin.file:
+        path: /etc/apt/keyrings
+        state: directory
+        mode: "0755"
+
+    - name: Download Docker GPG key
+      ansible.builtin.get_url:
+        url: https://download.docker.com/linux/ubuntu/gpg
+        dest: /etc/apt/keyrings/docker.asc
+        mode: "0644"
+
+    # Step 5: Add Docker APT repository
+    - name: Get system architecture
+      ansible.builtin.command: dpkg --print-architecture
+      register: dpkg_arch
+      changed_when: false
+
+    - name: Add Docker repository
+      ansible.builtin.apt_repository:
+        repo: >-
+          deb [arch={{ dpkg_arch.stdout }}
+          signed-by=/etc/apt/keyrings/docker.asc]
+          https://download.docker.com/linux/ubuntu
+          {{ ansible_distribution_release }} stable
+        state: present
+        filename: docker
+
+    # Step 6: Install Docker Engine
+    - name: Install Docker packages
+      ansible.builtin.apt:
+        name:
+          - docker-ce
+          - docker-ce-cli
+          - containerd.io
+          - docker-buildx-plugin
+          - docker-compose-plugin
+        state: present
+        update_cache: yes
+
+    # Step 7: Start and enable Docker service
+    - name: Start and enable Docker service
+      ansible.builtin.systemd:
+        name: docker
+        state: started
+        enabled: yes
+
+    # Step 8: Add user to docker group
+    - name: Add user to docker group
+      ansible.builtin.user:
+        name: "{{ item }}"
+        groups: docker
+        append: yes
+      loop: "{{ docker_users }}"
+
+    # Step 9: Configure Docker daemon
+    - name: Create Docker daemon configuration
+      ansible.builtin.copy:
+        content: |
+          {
+            "log-driver": "json-file",
+            "log-opts": {
+              "max-size": "10m",
+              "max-file": "3"
+            },
+            "storage-driver": "overlay2",
+            "live-restore": true
+          }
+        dest: /etc/docker/daemon.json
+        mode: "0644"
+      notify: restart docker
+
+    # Step 10: Verify installation
+    - name: Check Docker version
+      ansible.builtin.command: docker version
+      register: docker_version
+      changed_when: false
+
+    - name: Check Docker Compose version
+      ansible.builtin.command: docker compose version
+      register: compose_version
+      changed_when: false
+
+    - name: Display installation results
+      ansible.builtin.debug:
+        msg: |
+          Docker: {{ docker_version.stdout_lines }}
+          Compose: {{ compose_version.stdout }}
+
+    - name: Run hello-world container
+      ansible.builtin.command: docker run --rm hello-world
+      register: hello_result
+      changed_when: false
+
+    - name: Confirm Docker is working
+      ansible.builtin.debug:
+        msg: "Docker installation verified successfully."
+
+  handlers:
+    - name: restart docker
+      ansible.builtin.systemd:
+        name: docker
+        state: restarted
