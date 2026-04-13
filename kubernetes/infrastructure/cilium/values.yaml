@@ -1,0 +1,42 @@
+# Cilium CNI — Helm values for k8s-homelab
+# Installed with: helm install cilium cilium/cilium -n kube-system -f values.yaml
+# Chart version: 1.18.0
+# Replaces kube-proxy (kubeProxyReplacement=true)
+#
+# Talos-specific settings per:
+# https://www.talos.dev/v1.12/kubernetes-guides/network/deploying-cilium/
+
+ipam:
+  mode: kubernetes
+
+kubeProxyReplacement: true
+
+# KubePrism endpoint (Talos built-in API server LB)
+k8sServiceHost: localhost
+k8sServicePort: 7445
+
+# Talos provides cgroupv2 and bpffs mounts
+cgroup:
+  autoMount:
+    enabled: false
+  hostRoot: /sys/fs/cgroup
+
+# Talos doesn't allow loading kernel modules from pods
+securityContext:
+  capabilities:
+    ciliumAgent:
+      - CHOWN
+      - KILL
+      - NET_ADMIN
+      - NET_RAW
+      - IPC_LOCK
+      - SYS_ADMIN
+      - SYS_RESOURCE
+      - DAC_OVERRIDE
+      - FOWNER
+      - SETGID
+      - SETUID
+    cleanCiliumState:
+      - NET_ADMIN
+      - SYS_ADMIN
+      - SYS_RESOURCE

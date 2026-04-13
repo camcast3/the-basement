@@ -68,6 +68,9 @@ services:
       --sqlite-storage-path=/data/omni.db
       --etcd-embedded=true
       --etcd-embedded-unsafe-fsync=false
+      --create-initial-service-account
+      --initial-service-account-key-path=/data/initial-sa-key
+      --initial-service-account-role=Admin
 
   omni-proxmox-provider:
     image: omni-infra-provider-proxmox:patched

@@ -1,3 +1,4 @@
+# Generic worker class (auto-distributes across nodes)
 metadata:
   namespace: default
   type: MachineClasses.omni.sidero.dev
@@ -6,3 +7,31 @@ spec:
   autoprovision:
     providerid: omni-proxmox
     providerdata: '{"cores": 6, "sockets": 1, "memory": 6144, "disk_size": 100, "storage_selector": "name == \"local-lvm\""}'
+---
+# Per-node classes for explicit placement
+metadata:
+  namespace: default
+  type: MachineClasses.omni.sidero.dev
+  id: worker-pve01
+spec:
+  autoprovision:
+    providerid: omni-proxmox
+    providerdata: '{"cores": 6, "sockets": 1, "memory": 6144, "disk_size": 100, "storage_selector": "name == \"local-lvm\"", "node": "pve01"}'
+---
+metadata:
+  namespace: default
+  type: MachineClasses.omni.sidero.dev
+  id: worker-pve02
+spec:
+  autoprovision:
+    providerid: omni-proxmox
+    providerdata: '{"cores": 6, "sockets": 1, "memory": 6144, "disk_size": 100, "storage_selector": "name == \"local-lvm\"", "node": "pve02"}'
+---
+metadata:
+  namespace: default
+  type: MachineClasses.omni.sidero.dev
+  id: worker-pve03
+spec:
+  autoprovision:
+    providerid: omni-proxmox
+    providerdata: '{"cores": 6, "sockets": 1, "memory": 6144, "disk_size": 100, "storage_selector": "name == \"local-lvm\"", "node": "pve03"}'

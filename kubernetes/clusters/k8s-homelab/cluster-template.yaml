@@ -4,14 +4,37 @@ kubernetes:
   version: v1.33.10
 talos:
   version: v1.12.6
+patches:
+  - name: disable-default-cni
+    inline:
+      cluster:
+        network:
+          cni:
+            name: none
+        proxy:
+          disabled: true
 ---
+# CP auto-distributes via provider pickNode (1 per Proxmox host)
 kind: ControlPlane
 machineClass:
   name: cp
   size: 3
 ---
+# Workers pinned per host: 2 each on pve01, pve02, pve03
 kind: Workers
-name: workers
+name: workers-pve01
 machineClass:
-  name: worker
-  size: 6
+  name: worker-pve01
+  size: 2
+---
+kind: Workers
+name: workers-pve02
+machineClass:
+  name: worker-pve02
+  size: 2
+---
+kind: Workers
+name: workers-pve03
+machineClass:
+  name: worker-pve03
+  size: 2

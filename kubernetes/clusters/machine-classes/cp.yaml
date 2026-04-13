@@ -1,3 +1,4 @@
+# Generic CP class (auto-distributes across nodes)
 metadata:
   namespace: default
   type: MachineClasses.omni.sidero.dev
@@ -6,3 +7,31 @@ spec:
   autoprovision:
     providerid: omni-proxmox
     providerdata: '{"cores": 4, "sockets": 1, "memory": 8192, "disk_size": 50, "storage_selector": "name == \"local-lvm\""}'
+---
+# Per-node classes for explicit placement
+metadata:
+  namespace: default
+  type: MachineClasses.omni.sidero.dev
+  id: cp-pve01
+spec:
+  autoprovision:
+    providerid: omni-proxmox
+    providerdata: '{"cores": 4, "sockets": 1, "memory": 8192, "disk_size": 50, "storage_selector": "name == \"local-lvm\"", "node": "pve01"}'
+---
+metadata:
+  namespace: default
+  type: MachineClasses.omni.sidero.dev
+  id: cp-pve02
+spec:
+  autoprovision:
+    providerid: omni-proxmox
+    providerdata: '{"cores": 4, "sockets": 1, "memory": 8192, "disk_size": 50, "storage_selector": "name == \"local-lvm\"", "node": "pve02"}'
+---
+metadata:
+  namespace: default
+  type: MachineClasses.omni.sidero.dev
+  id: cp-pve03
+spec:
+  autoprovision:
+    providerid: omni-proxmox
+    providerdata: '{"cores": 4, "sockets": 1, "memory": 8192, "disk_size": 50, "storage_selector": "name == \"local-lvm\"", "node": "pve03"}'
