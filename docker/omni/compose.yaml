@@ -9,8 +9,14 @@
 #   - fullchain.pem     TLS certificate (for machine-facing ports)
 #   - privkey.pem       TLS private key
 #
+# Proxmox provider uses a patched local image (built from source with
+# updated gopenpgp to match Omni v1.6+). The upstream latest image has a
+# PGP key format incompatibility with current Omni releases.
+# Build: git clone https://github.com/siderolabs/omni-infra-provider-proxmox
+#        go get github.com/ProtonMail/gopenpgp/v2@latest && go get github.com/siderolabs/omni/client@latest
+#        go mod tidy && CGO_ENABLED=0 go build -o provider ./cmd/omni-infra-provider-proxmox/
 # Proxmox provider is optional — comment out or remove if not needed.
-# It requires a service account key generated from Omni UI after first start.
+# It requires an infra provider created via: omnictl infraprovider create <name>
 
 services:
   omni:
@@ -60,21 +66,22 @@ services:
       --etcd-embedded-unsafe-fsync=false
 
   omni-proxmox-provider:
-    image: ghcr.io/siderolabs/omni-infra-provider-proxmox:${PROXMOX_PROVIDER_VERSION:-latest}
+    image: omni-infra-provider-proxmox:patched
     container_name: omni-proxmox-provider
     restart: unless-stopped
     depends_on:
       - omni
     networks:
       - omni-network
+    environment:
+      - OMNI_ENDPOINT=https://omni:8080
+      - OMNI_SERVICE_ACCOUNT_KEY=${OMNI_SERVICE_ACCOUNT_KEY}
     volumes:
       - ${OMNI_DATA_DIR:-/opt/omni}/proxmox-config.yaml:/config.yaml:ro
     command: >
       --config-file /config.yaml
-      --omni-api-endpoint grpc://omni:8080
-      --omni-service-account-key ${OMNI_SERVICE_ACCOUNT_KEY}
       --insecure-skip-verify
-      --id proxmox_provider
+      --id omni-proxmox
 
 networks:
   omni-network:
