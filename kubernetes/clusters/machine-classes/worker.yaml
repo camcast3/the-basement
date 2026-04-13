@@ -1,0 +1,8 @@
+metadata:
+  namespace: default
+  type: MachineClasses.omni.sidero.dev
+  id: worker
+spec:
+  autoprovision:
+    providerid: omni-proxmox
+    providerdata: '{"cores": 6, "sockets": 1, "memory": 6144, "disk_size": 100, "storage_selector": "name == \"local-lvm\""}'

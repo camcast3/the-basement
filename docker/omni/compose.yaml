@@ -1,22 +1,25 @@
-# Omni On-Prem — Portainer Stack
+# Omni On-Prem — Docker Compose Stack
 #
-# Deploy this as a Portainer stack on a dedicated Docker host (Proxmox VM).
-# Traefik terminates TLS for the web UI on port 8080.
-# Omni handles its own TLS for machine-facing ports (8090, 8100).
+# Deploy on a dedicated Docker host (Proxmox VM). DNS for OMNI_DOMAIN must
+# point directly to this host. Omni handles its own TLS using Let's Encrypt
+# certs obtained via certbot with Cloudflare DNS-01 challenge.
 #
 # Required files on the host (see .env.example for paths):
-#   - omni.asc          GPG key for etcd encryption
-#   - fullchain.pem     TLS certificate (for machine-facing ports)
-#   - privkey.pem       TLS private key
+#   - omni.asc                  GPG key for etcd encryption
+#   - certs/fullchain.pem       Let's Encrypt TLS certificate (fullchain)
+#   - certs/privkey.pem         Let's Encrypt TLS private key
+#   - cloudflare/credentials.ini  Cloudflare API token for cert renewal
+#
+# Cert setup:  sudo /opt/omni/setup-certs.sh
+# Cert renewal: certbot renew (auto-renewed via systemd timer)
 #
 # Proxmox provider uses a patched local image (built from source with
-# updated gopenpgp to match Omni v1.6+). The upstream latest image has a
-# PGP key format incompatibility with current Omni releases.
+# updated gopenpgp to match Omni v1.6+ and fixed NoCloud network-config).
 # Build: git clone https://github.com/siderolabs/omni-infra-provider-proxmox
+#        # Fix provision.go: change "version: 1" to "" in CloudInit() call
 #        go get github.com/ProtonMail/gopenpgp/v2@latest && go get github.com/siderolabs/omni/client@latest
 #        go mod tidy && CGO_ENABLED=0 go build -o provider ./cmd/omni-infra-provider-proxmox/
 # Proxmox provider is optional — comment out or remove if not needed.
-# It requires an infra provider created via: omnictl infraprovider create <name>
 
 services:
   omni:
@@ -24,11 +27,12 @@ services:
     container_name: omni
     restart: unless-stopped
     ports:
-      - "${OMNI_HTTP_PORT:-8080}:${OMNI_HTTP_PORT:-8080}"       # Web UI (Traefik proxies here)
-      - "8090:8090"                                               # SideroLink API (TLS)
-      - "8091:8091"                                               # Event sink
-      - "8100:8100"                                               # Kubernetes proxy (TLS)
-      - "50180:50180/udp"                                         # WireGuard
+      - "443:${OMNI_HTTP_PORT:-8080}"                               # Web UI (HTTPS, direct)
+      - "${OMNI_HTTP_PORT:-8080}:${OMNI_HTTP_PORT:-8080}"           # Web UI (legacy port)
+      - "8090:8090"                                                  # SideroLink API (TLS)
+      - "8091:8091"                                                  # Event sink
+      - "8100:8100"                                                  # Kubernetes proxy (TLS)
+      - "50180:50180/udp"                                            # WireGuard
     networks:
       - omni-network
     devices:
