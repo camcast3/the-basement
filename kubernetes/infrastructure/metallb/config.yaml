@@ -1,5 +1,13 @@
 # MetalLB Configuration for k8s-homelab
 # L2 mode with IP range on the LAN subnet
+#
+# Network layout (192.168.86.0/24):
+#   .2-.4       Proxmox hosts (pve01-03)
+#   .10         Omni VM
+#   .20-.49     MetalLB LoadBalancer IPs (this pool)
+#   .50-.99     Reserved (future static assignments)
+#   .100-.149   K8s node IPs (Omni/Talos allocated)
+#   .150-.254   DHCP range (router-assigned)
 apiVersion: metallb.io/v1beta1
 kind: IPAddressPool
 metadata:
@@ -7,7 +15,7 @@ metadata:
   namespace: metallb-system
 spec:
   addresses:
-    - 192.168.86.25-192.168.86.200
+    - 192.168.86.20-192.168.86.49
 ---
 apiVersion: metallb.io/v1beta1
 kind: L2Advertisement
