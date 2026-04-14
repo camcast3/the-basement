@@ -9,72 +9,105 @@ What we store is the **customization layer**:
 kubernetes/
 ├── infrastructure/          # Cluster infrastructure (CNI, DNS, certs, storage)
 │   ├── cilium/
-│   │   └── values.yaml              # Our Helm overrides for Cilium
+│   │   └── values.yaml
 │   ├── cert-manager/
 │   │   ├── values.yaml              # Helm overrides
-│   │   ├── cluster-issuer.yaml      # Additional K8s manifests
-│   │   └── infisical-secret.yaml    # Declarative secret reference
+│   │   └── manifests/               # Raw K8s manifests (deployed by ArgoCD separately)
+│   │       ├── cluster-issuer.yaml
+│   │       └── infisical-secret.yaml
 │   ├── external-dns/
 │   │   ├── values.yaml
-│   │   └── infisical-secret.yaml
+│   │   └── manifests/
+│   │       └── infisical-secret.yaml
 │   └── infisical-operator/
 │       └── values.yaml
 ├── platform/                # Developer platform (GitOps, rollouts)
 │   ├── argocd/
+│   │   ├── root-app.yaml            # Bootstrap — apply this ONE file manually
+│   │   └── apps/                    # App-of-apps: one YAML per component
+│   │       ├── cert-manager.yaml
+│   │       ├── cert-manager-config.yaml  # Deploys manifests/ directory
+│   │       ├── cilium.yaml
+│   │       └── ...
 │   └── argo-rollouts/
+│       └── values.yaml
 ├── observability/           # Monitoring stack
 │   ├── kube-prometheus-stack/
+│   │   └── values.yaml
 │   ├── loki/
+│   │   └── values.yaml
 │   └── alloy/
+│       └── values.yaml
 └── apps/                    # Application workloads
 ```
 
 ### What's in each component directory?
 
-| File | Purpose |
-|------|---------|
+| File/Dir | Purpose |
+|----------|---------|
 | `values.yaml` | Helm chart overrides (version pinned in comment header) |
-| `infisical-secret.yaml` | InfisicalSecret CRD — tells Infisical Operator to sync a secret into K8s |
-| `*.yaml` (other) | Additional K8s manifests not covered by the Helm chart (ClusterIssuers, etc.) |
+| `manifests/` | Raw K8s manifests (ClusterIssuers, InfisicalSecrets, etc.) |
+
+### ArgoCD App-of-Apps Pattern
+
+```
+root-app.yaml (manually applied ONCE)
+  └── watches: kubernetes/platform/argocd/apps/
+       ├── cert-manager.yaml         → Helm: jetstack/cert-manager + our values.yaml
+       ├── cert-manager-config.yaml  → Directory: cert-manager/manifests/
+       ├── cilium.yaml               → Helm: cilium/cilium + our values.yaml
+       ├── infisical-operator.yaml   → Helm: infisical/secrets-operator + our values.yaml
+       └── ...
+```
+
+Each ArgoCD Application uses **multi-source** to combine upstream chart + our values:
+
+```yaml
+sources:
+  - repoURL: https://charts.jetstack.io    # Upstream chart repo
+    chart: cert-manager
+    targetRevision: v1.20.2                 # Pinned chart version
+    helm:
+      valueFiles:
+        - $values/kubernetes/infrastructure/cert-manager/values.yaml
+  - repoURL: https://github.com/camcast3/the-basement.git
+    targetRevision: main
+    ref: values                             # "$values" alias for our repo
+```
+
+### Bootstrap (one-time setup)
+
+```bash
+# 1. Uninstall any existing Helm releases so ArgoCD can take over
+helm uninstall cert-manager -n cert-manager
+helm uninstall spegel -n spegel
+helm uninstall descheduler -n kube-system
+
+# 2. Apply the root app — ArgoCD creates all other Applications automatically
+kubectl apply -f kubernetes/platform/argocd/root-app.yaml
+```
+
+After bootstrap, everything is GitOps:
+- Push to `main` → ArgoCD detects → auto-syncs
+- Add a new app YAML to `argocd/apps/` → ArgoCD creates the Application
+- Delete an app YAML → ArgoCD prunes it
 
 ### How secrets work (zero secrets in git)
 
 ```
-Infisical (TrueNAS)
+Infisical (TrueNAS at infisical.local.negativezone.cc)
     ↓ Kubernetes Auth (no static creds)
 Infisical Operator (in-cluster)
-    ↓ creates/syncs
+    ↓ creates/syncs via InfisicalSecret CRDs
 K8s Secrets (pihole-password, cloudflare-api-token, etc.)
     ↓ referenced by
 Helm chart values (secretKeyRef)
 ```
 
 1. Store secrets in Infisical under project `k8s-homelab`, environment `prod`
-2. Create `InfisicalSecret` CRDs in git (declarative, no actual secret values)
+2. Create `InfisicalSecret` CRDs in `manifests/` directories (no actual secret values in git)
 3. The operator syncs them into K8s Secrets automatically
 4. Helm charts consume secrets via `secretKeyRef` as usual
-
-### How deployments work (ArgoCD GitOps)
-
-Once ArgoCD is managing the cluster:
-
-1. ArgoCD `Application` CRDs point to upstream chart repo + version + our values file
-2. Push to `main` → ArgoCD detects drift → reconciles cluster state
-3. Secrets are handled separately by the Infisical Operator (not ArgoCD)
-
-### Manual deployment (before ArgoCD manages a component)
-
-```bash
-# Example: deploy cert-manager
-helm upgrade --install cert-manager jetstack/cert-manager \
-  --version v1.20.2 \
-  --namespace cert-manager --create-namespace \
-  -f kubernetes/infrastructure/cert-manager/values.yaml
-
-# Apply additional manifests
-kubectl apply -f kubernetes/infrastructure/cert-manager/cluster-issuer.yaml
-kubectl apply -f kubernetes/infrastructure/cert-manager/infisical-secret.yaml
-```
 
 ### Infisical secret naming convention
 
@@ -83,7 +116,19 @@ kubectl apply -f kubernetes/infrastructure/cert-manager/infisical-secret.yaml
 | `/external-dns` | `PIHOLE_PASSWORD` | `pihole-password` (ns: external-dns) | `password` |
 | `/cert-manager` | `CLOUDFLARE_API_TOKEN` | `cloudflare-api-token` (ns: cert-manager) | `api-token` |
 
-Add new secrets by:
-1. Creating the secret in Infisical at the appropriate path
-2. Creating an `InfisicalSecret` CRD manifest in the component's directory
-3. Using Go templates to map UPPER_CASE Infisical keys → expected K8s Secret keys
+### Adding a new component
+
+1. Create `kubernetes/<layer>/<component>/values.yaml` with Helm overrides
+2. If secrets needed: create `manifests/infisical-secret.yaml` with InfisicalSecret CRD
+3. Create ArgoCD Application in `kubernetes/platform/argocd/apps/<component>.yaml`
+4. If raw manifests exist: create `<component>-config.yaml` ArgoCD app pointing to `manifests/`
+5. Push to `main` — ArgoCD handles the rest
+
+### External dependencies (set up outside K8s first)
+
+| Dependency | Where | What to configure |
+|------------|-------|-------------------|
+| Infisical | TrueNAS | Machine Identity with K8s Auth, project `k8s-homelab` |
+| Pi-hole | 192.168.25.19 | Admin password stored in Infisical at `/external-dns/PIHOLE_PASSWORD` |
+| Cloudflare | API | API token stored in Infisical at `/cert-manager/CLOUDFLARE_API_TOKEN` |
+| Authentik | TrueNAS (Docker) | SSO provider for ArgoCD, Grafana |

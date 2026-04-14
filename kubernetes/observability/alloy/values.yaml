@@ -5,7 +5,7 @@
 #   helm repo add grafana https://grafana.github.io/helm-charts
 #   helm repo update
 #   helm install alloy grafana/alloy \
-#     --namespace observability --create-namespace \
+#     --namespace monitoring --create-namespace \
 #     --version 1.7.0 \
 #     -f values.yaml
 # =============================================================================
@@ -60,7 +60,7 @@ alloy:
       // -----------------------------------------------------------------------
       loki.write "default" {
         endpoint {
-          url = "http://loki-gateway.observability.svc.cluster.local:80/loki/api/v1/push"
+          url = "http://loki-gateway.monitoring.svc.cluster.local:80/loki/api/v1/push"
 
           // No tenant header needed when loki.auth_enabled = false
         }
@@ -93,7 +93,7 @@ alloy:
       // -----------------------------------------------------------------------
       prometheus.remote_write "default" {
         endpoint {
-          url = "http://kube-prometheus-stack-prometheus.observability.svc.cluster.local:9090/api/v1/write"
+          url = "http://kube-prometheus-stack-prometheus.monitoring.svc.cluster.local:9090/api/v1/write"
         }
       }
 
