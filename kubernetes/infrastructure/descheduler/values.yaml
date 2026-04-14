@@ -1,0 +1,51 @@
+# Descheduler — Helm values for k8s-homelab
+# Chart: kubernetes-sigs/descheduler v0.35.1
+# Install: helm upgrade --install descheduler kubernetes-sigs/descheduler -n kube-system -f values.yaml
+#
+# Periodically rebalances pods across nodes to improve resource utilization.
+
+schedule: "*/10 * * * *"
+
+deschedulerPolicy:
+  profiles:
+    - name: default
+      pluginConfig:
+        - name: RemoveDuplicates
+          args:
+            excludeOwnerKinds:
+              - DaemonSet
+        - name: RemovePodsViolatingNodeAffinity
+          args:
+            nodeAffinityType:
+              - requiredDuringSchedulingIgnoredDuringExecution
+        - name: RemovePodsViolatingInterPodAntiAffinity
+        - name: LowNodeUtilization
+          args:
+            thresholds:
+              cpu: 20
+              memory: 20
+              pods: 15
+            targetThresholds:
+              cpu: 50
+              memory: 50
+              pods: 30
+            evictableNamespaces:
+              exclude:
+                - kube-system
+                - cert-manager
+      plugins:
+        balance:
+          enabled:
+            - RemoveDuplicates
+            - LowNodeUtilization
+        deschedule:
+          enabled:
+            - RemovePodsViolatingNodeAffinity
+            - RemovePodsViolatingInterPodAntiAffinity
+
+resources:
+  requests:
+    cpu: 10m
+    memory: 32Mi
+  limits:
+    memory: 128Mi

@@ -1,0 +1,26 @@
+# cert-manager — Helm values for k8s-homelab
+# Chart: jetstack/cert-manager v1.20.2
+# Install: helm upgrade --install cert-manager jetstack/cert-manager -n cert-manager --create-namespace -f values.yaml
+
+installCRDs: true
+
+replicaCount: 2
+
+resources:
+  requests:
+    cpu: 10m
+    memory: 32Mi
+  limits:
+    memory: 64Mi
+
+webhook:
+  replicaCount: 2
+
+cainjector:
+  replicaCount: 1
+
+# Prometheus metrics (enable after kube-prometheus-stack is deployed)
+prometheus:
+  enabled: false
+  servicemonitor:
+    enabled: false

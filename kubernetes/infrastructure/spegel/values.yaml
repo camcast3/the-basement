@@ -1,0 +1,24 @@
+# Spegel — Helm values for k8s-homelab
+# Chart: oci://ghcr.io/spegel-org/helm-charts/spegel v0.6.0
+# Install: helm upgrade --install spegel oci://ghcr.io/spegel-org/helm-charts/spegel --version 0.6.0 -n spegel --create-namespace -f values.yaml
+#
+# Spegel provides cluster-local P2P OCI image caching.
+# Nodes share cached images over the cluster network, reducing
+# external registry pulls (especially useful with Harbor).
+
+spegel:
+  containerdSock: /run/containerd/containerd.sock
+  containerdRegistryConfigPath: /etc/cri/conf.d/hosts
+
+  registries:
+    - https://ghcr.io
+    - https://docker.io
+    - https://registry.k8s.io
+    - https://quay.io
+
+resources:
+  requests:
+    cpu: 10m
+    memory: 32Mi
+  limits:
+    memory: 128Mi
