@@ -1,6 +1,6 @@
 # Cilium CNI — Helm values for k8s-homelab
-# Installed with: helm install cilium cilium/cilium -n kube-system -f values.yaml
-# Chart version: 1.18.0
+# Installed with: helm upgrade --install cilium cilium/cilium -n kube-system -f values.yaml
+# Chart version: 1.19.2
 # Replaces kube-proxy (kubeProxyReplacement=true)
 #
 # Talos-specific settings per:
@@ -20,6 +20,14 @@ cgroup:
   autoMount:
     enabled: false
   hostRoot: /sys/fs/cgroup
+
+# Hubble observability
+hubble:
+  enabled: true
+  relay:
+    enabled: true
+  ui:
+    enabled: true
 
 # Talos doesn't allow loading kernel modules from pods
 securityContext:
