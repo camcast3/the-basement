@@ -1,0 +1,35 @@
+# infisical-operator — Helm values for k8s-homelab
+# Chart: infisical/secrets-operator v0.10.30
+# Install:
+#   helm upgrade --install infisical-operator infisical/secrets-operator \
+#     -n infisical-operator --create-namespace -f values.yaml
+#
+# The operator syncs secrets from Infisical (TrueNAS) into K8s Secrets.
+# Uses Kubernetes Auth — no static credentials needed in the cluster.
+#
+# Prerequisites:
+#   1. Create a Machine Identity in Infisical with "Kubernetes Auth"
+#   2. Configure the identity to trust this cluster's OIDC issuer
+#   3. Grant it access to the "k8s-homelab" project
+#   4. Update identityId in all InfisicalSecret CRDs with the generated ID
+
+hostAPI: https://infisical.local.negativezone.cc/api
+
+controllerManager:
+  replicas: 1
+  serviceAccount:
+    create: true
+    name: infisical-operator
+  manager:
+    image:
+      repository: infisical/kubernetes-operator
+      tag: v0.10.30
+    resources:
+      limits:
+        cpu: 200m
+        memory: 128Mi
+      requests:
+        cpu: 10m
+        memory: 64Mi
+
+installCRDs: true
