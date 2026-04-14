@@ -1,0 +1,214 @@
+# =============================================================================
+# kube-prometheus-stack Helm Values
+# Chart: prometheus-community/kube-prometheus-stack v83.4.1
+# Install:
+#   helm repo add prometheus-community https://prometheus-community.github.io/helm-charts
+#   helm repo update
+#   helm install kube-prometheus-stack prometheus-community/kube-prometheus-stack \
+#     --namespace observability --create-namespace \
+#     --version 83.4.1 \
+#     -f values.yaml
+# =============================================================================
+
+# -- Only non-default values are set below. Everything else uses chart defaults.
+
+# =============================================================================
+# Default Rules
+# =============================================================================
+defaultRules:
+  rules:
+    # Talos Linux does not run kube-proxy as a separate component
+    kubeProxy: false
+    # Windows monitoring is not applicable
+    windows: false
+
+# =============================================================================
+# Alertmanager
+# =============================================================================
+alertmanager:
+  alertmanagerSpec:
+    resources:
+      requests:
+        cpu: 50m
+        memory: 64Mi
+      limits:
+        memory: 128Mi
+    # TODO: Enable persistent storage once ceph-csi-rbd StorageClass is available
+    # storage:
+    #   volumeClaimTemplate:
+    #     spec:
+    #       storageClassName: ceph-rbd
+    #       accessModes: ["ReadWriteOnce"]
+    #       resources:
+    #         requests:
+    #           storage: 5Gi
+
+# =============================================================================
+# Grafana
+# =============================================================================
+grafana:
+  # Admin credentials — change the password after first login
+  adminUser: admin
+  # adminPassword is auto-generated if not set; retrieve with:
+  #   kubectl get secret -n observability kube-prometheus-stack-grafana -o jsonpath="{.data.admin-password}" | base64 -d
+
+  # -- Persistence disabled (no StorageClass yet)
+  # TODO: Enable persistence once ceph-csi-rbd StorageClass is available
+  # persistence:
+  #   enabled: true
+  #   storageClassName: ceph-rbd
+  #   size: 10Gi
+
+  resources:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+    limits:
+      memory: 256Mi
+
+  # -- Gateway API HTTPRoute for Grafana (Cilium Gateway API, no Ingress controller)
+  ingress:
+    enabled: false
+
+  # -- Additional datasources: Loki for log aggregation
+  additionalDataSources:
+    - name: Loki
+      type: loki
+      uid: loki
+      url: http://loki-gateway.observability.svc.cluster.local:80
+      access: proxy
+      isDefault: false
+      jsonData:
+        maxLines: 1000
+
+  sidecar:
+    dashboards:
+      enabled: true
+      searchNamespace: ALL
+    datasources:
+      enabled: true
+
+# -- Grafana Gateway API HTTPRoute (applied as an extra manifest)
+# The kube-prometheus-stack chart's built-in route support is beta and limited,
+# so we deploy the HTTPRoute as an extraManifest for full control.
+extraManifests:
+  - apiVersion: gateway.networking.k8s.io/v1
+    kind: HTTPRoute
+    metadata:
+      name: grafana
+      namespace: observability
+    spec:
+      parentRefs:
+        # TODO: Update gateway name/namespace to match your Cilium Gateway resource
+        - name: cilium-gateway
+          namespace: kube-system
+      hostnames:
+        - grafana.local.negativezone.cc
+      rules:
+        - matches:
+            - path:
+                type: PathPrefix
+                value: /
+          backendRefs:
+            - name: kube-prometheus-stack-grafana
+              port: 80
+
+# =============================================================================
+# Prometheus
+# =============================================================================
+prometheus:
+  prometheusSpec:
+    # Scrape all ServiceMonitors/PodMonitors across all namespaces
+    serviceMonitorSelectorNilUsesHelmValues: false
+    podMonitorSelectorNilUsesHelmValues: false
+    probeSelectorNilUsesHelmValues: false
+    scrapeConfigSelectorNilUsesHelmValues: false
+
+    retention: 15d
+
+    resources:
+      requests:
+        cpu: 200m
+        memory: 512Mi
+      limits:
+        memory: 2Gi
+
+    # TODO: Enable persistent storage once ceph-csi-rbd StorageClass is available
+    # storageSpec:
+    #   volumeClaimTemplate:
+    #     spec:
+    #       storageClassName: ceph-rbd
+    #       accessModes: ["ReadWriteOnce"]
+    #       resources:
+    #         requests:
+    #           storage: 50Gi
+
+    # Use emptyDir for now — data is lost on pod restart
+    storageSpec:
+      emptyDir:
+        medium: ""
+        sizeLimit: 20Gi
+
+# =============================================================================
+# Kubernetes Component Monitors — Talos Linux Adjustments
+# =============================================================================
+
+# Talos Linux does not run kube-proxy; Cilium replaces it
+kubeProxy:
+  enabled: false
+
+# Talos exposes kube-controller-manager on all interfaces
+kubeControllerManager:
+  enabled: true
+  endpoints: []
+  service:
+    enabled: true
+
+# Talos exposes kube-scheduler on all interfaces
+kubeScheduler:
+  enabled: true
+  endpoints: []
+  service:
+    enabled: true
+
+# etcd metrics are exposed by Talos
+kubeEtcd:
+  enabled: true
+  service:
+    enabled: true
+    port: 2381
+    targetPort: 2381
+
+# =============================================================================
+# Node Exporter — Talos Linux (read-only / immutable OS) adjustments
+# =============================================================================
+nodeExporter:
+  enabled: true
+
+prometheus-node-exporter:
+  # Talos has a read-only filesystem; adjust mount-point and fs-type excludes
+  extraArgs:
+    - --collector.filesystem.mount-points-exclude=^/(dev|proc|sys|run/containerd/.+|var/lib/docker/.+|var/lib/kubelet/.+|var|etc|opt|usr|boot|sbin|bin|lib|home)($|/)
+    - --collector.filesystem.fs-types-exclude=^(autofs|binfmt_misc|bpf|cgroup2?|configfs|debugfs|devpts|devtmpfs|fusectl|hugetlbfs|iso9660|mqueue|nsfs|overlay|proc|procfs|pstore|rpc_pipefs|securityfs|selinuxfs|squashfs|sysfs|tracefs|tmpfs|erofs)$
+  # Tolerate control-plane taints so node-exporter runs on all 9 nodes
+  tolerations:
+    - effect: NoSchedule
+      operator: Exists
+
+  resources:
+    requests:
+      cpu: 20m
+      memory: 32Mi
+    limits:
+      memory: 64Mi
+
+# =============================================================================
+# Prometheus Operator
+# =============================================================================
+prometheusOperator:
+  resources:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+    limits:
+      memory: 256Mi

@@ -1,0 +1,136 @@
+# =============================================================================
+# Grafana Alloy Helm Values
+# Chart: grafana/alloy v1.7.0
+# Install:
+#   helm repo add grafana https://grafana.github.io/helm-charts
+#   helm repo update
+#   helm install alloy grafana/alloy \
+#     --namespace observability --create-namespace \
+#     --version 1.7.0 \
+#     -f values.yaml
+# =============================================================================
+
+# -- Only non-default values are set below. Everything else uses chart defaults.
+
+# =============================================================================
+# Alloy Configuration
+# =============================================================================
+alloy:
+  configMap:
+    create: true
+    content: |
+      // =======================================================================
+      // Grafana Alloy Configuration — Log & Metric Collection for Homelab
+      // =======================================================================
+
+      // -----------------------------------------------------------------------
+      // Kubernetes Discovery — find all pods across all namespaces
+      // -----------------------------------------------------------------------
+      discovery.kubernetes "pods" {
+        role = "pod"
+      }
+
+      // -----------------------------------------------------------------------
+      // Pod Log Collection — collect logs from all pods via Kubernetes API
+      // -----------------------------------------------------------------------
+      loki.source.kubernetes "pod_logs" {
+        targets    = discovery.kubernetes.pods.targets
+        forward_to = [loki.process.pod_logs.receiver]
+      }
+
+      // -----------------------------------------------------------------------
+      // Log Processing — add Kubernetes metadata labels
+      // -----------------------------------------------------------------------
+      loki.process "pod_logs" {
+        forward_to = [loki.write.default.receiver]
+
+        stage.cri {}
+
+        stage.labels {
+          values = {
+            namespace = "",
+            pod       = "",
+            container = "",
+          }
+        }
+      }
+
+      // -----------------------------------------------------------------------
+      // Loki Write Target
+      // -----------------------------------------------------------------------
+      loki.write "default" {
+        endpoint {
+          url = "http://loki-gateway.observability.svc.cluster.local:80/loki/api/v1/push"
+
+          // No tenant header needed when loki.auth_enabled = false
+        }
+      }
+
+      // -----------------------------------------------------------------------
+      // Kubernetes Events — collect cluster events as logs
+      // -----------------------------------------------------------------------
+      loki.source.kubernetes_events "cluster_events" {
+        job_name   = "integrations/kubernetes/eventhandler"
+        log_format = "logfmt"
+        forward_to = [loki.write.default.receiver]
+      }
+
+      // -----------------------------------------------------------------------
+      // Prometheus Metrics — scrape Alloy's own metrics for self-monitoring
+      // -----------------------------------------------------------------------
+      prometheus.exporter.self "alloy" {
+      }
+
+      prometheus.scrape "alloy_self" {
+        targets    = prometheus.exporter.self.alloy.targets
+        forward_to = [prometheus.remote_write.default.receiver]
+
+        scrape_interval = "60s"
+      }
+
+      // -----------------------------------------------------------------------
+      // Prometheus Remote Write — send self-monitoring metrics to Prometheus
+      // -----------------------------------------------------------------------
+      prometheus.remote_write "default" {
+        endpoint {
+          url = "http://kube-prometheus-stack-prometheus.observability.svc.cluster.local:9090/api/v1/write"
+        }
+      }
+
+  # Resources for the Alloy container
+  resources:
+    requests:
+      cpu: 50m
+      memory: 128Mi
+    limits:
+      memory: 256Mi
+
+  # Mount /var/log and /var/lib/docker/containers for direct log file access
+  # Not strictly needed when using loki.source.kubernetes (API-based collection),
+  # but useful if you add file-based collection later.
+  mounts:
+    varlog: false
+    dockercontainers: false
+
+# =============================================================================
+# Controller — DaemonSet mode for per-node log collection
+# =============================================================================
+controller:
+  type: daemonset
+
+  # Tolerate control-plane taints so Alloy runs on all 9 nodes
+  tolerations:
+    - effect: NoSchedule
+      operator: Exists
+
+# =============================================================================
+# Service Monitor — let Prometheus scrape Alloy metrics
+# =============================================================================
+serviceMonitor:
+  enabled: true
+
+# =============================================================================
+# Image defaults (uses chart appVersion)
+# =============================================================================
+image:
+  pullPolicy: IfNotPresent

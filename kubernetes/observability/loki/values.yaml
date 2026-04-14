@@ -1,0 +1,160 @@
+# =============================================================================
+# Loki Helm Values
+# Chart: grafana/loki v6.55.0
+# Install:
+#   helm repo add grafana https://grafana.github.io/helm-charts
+#   helm repo update
+#   helm install loki grafana/loki \
+#     --namespace observability --create-namespace \
+#     --version 6.55.0 \
+#     -f values.yaml
+# =============================================================================
+
+# -- Only non-default values are set below. Everything else uses chart defaults.
+
+# =============================================================================
+# Deployment Mode — SingleBinary for homelab simplicity
+# =============================================================================
+# SingleBinary runs all Loki components in a single process.
+# Suitable for small to medium homelabs (up to ~tens of GB/day).
+# TODO: Consider migrating to SimpleScalable if log volume exceeds 50GB/day
+deploymentMode: SingleBinary
+
+# =============================================================================
+# Loki Configuration
+# =============================================================================
+loki:
+  auth_enabled: false
+
+  commonConfig:
+    path_prefix: /var/loki
+    replication_factor: 1
+
+  # -- Schema configuration (required)
+  schemaConfig:
+    configs:
+      - from: "2024-01-01"
+        store: tsdb
+        object_store: filesystem
+        schema: v13
+        index:
+          prefix: index_
+          period: 24h
+
+  # -- Storage: filesystem backend (no object storage available yet)
+  # TODO: Migrate to ceph-csi-rbd backed S3 (via Ceph RGW) or direct object storage
+  storage:
+    type: filesystem
+    filesystem:
+      chunks_directory: /var/loki/chunks
+      rules_directory: /var/loki/rules
+
+  limits_config:
+    reject_old_samples: true
+    reject_old_samples_max_age: 168h
+    max_cache_freshness_per_query: 10m
+    split_queries_by_interval: 15m
+    query_timeout: 300s
+    volume_enabled: true
+    ingestion_rate_mb: 10
+    ingestion_burst_size_mb: 20
+    max_streams_per_user: 10000
+    max_global_streams_per_user: 10000
+
+  ingester:
+    chunk_encoding: snappy
+
+  # Disable tracing for homelab
+  tracing:
+    enabled: false
+
+# =============================================================================
+# SingleBinary Deployment
+# =============================================================================
+singleBinary:
+  replicas: 1
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      memory: 1Gi
+  persistence:
+    enabled: true
+    size: 20Gi
+    # TODO: Set storageClassName once ceph-csi-rbd StorageClass is available
+    # storageClass: ceph-rbd
+    storageClass: null
+
+# Disable SimpleScalable targets (not used in SingleBinary mode)
+write:
+  replicas: 0
+read:
+  replicas: 0
+backend:
+  replicas: 0
+
+# =============================================================================
+# Microservices Mode — disabled
+# =============================================================================
+ingester:
+  replicas: 0
+querier:
+  replicas: 0
+queryFrontend:
+  replicas: 0
+queryScheduler:
+  replicas: 0
+distributor:
+  replicas: 0
+compactor:
+  replicas: 0
+indexGateway:
+  replicas: 0
+bloomCompactor:
+  replicas: 0
+bloomGateway:
+  replicas: 0
+patternIngester:
+  replicas: 0
+
+# =============================================================================
+# Gateway (nginx reverse proxy in front of Loki)
+# =============================================================================
+gateway:
+  enabled: true
+  replicas: 1
+  resources:
+    requests:
+      cpu: 20m
+      memory: 32Mi
+    limits:
+      memory: 64Mi
+  # Relax anti-affinity for homelab
+  affinity: {}
+
+# =============================================================================
+# Supporting Components
+# =============================================================================
+
+# Disable caches (not needed for single-node filesystem backend)
+chunksCache:
+  enabled: false
+resultsCache:
+  enabled: false
+
+# Disable canary and test (not needed for initial deployment)
+lokiCanary:
+  enabled: false
+test:
+  enabled: false
+
+# Enterprise features not used
+enterprise:
+  enabled: false
+
+# =============================================================================
+# Monitoring
+# =============================================================================
+serviceAccount:
+  create: true
