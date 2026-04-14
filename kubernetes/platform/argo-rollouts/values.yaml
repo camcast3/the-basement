@@ -1,0 +1,16 @@
+# argo-rollouts — Helm values for k8s-homelab
+# Chart: argo/argo-rollouts v2.40.9
+#
+# Progressive delivery controller for canary/blue-green deployments.
+# Works alongside ArgoCD for GitOps-driven rollouts.
+
+dashboard:
+  enabled: true
+
+controller:
+  resources:
+    requests:
+      cpu: 10m
+      memory: 64Mi
+    limits:
+      memory: 128Mi

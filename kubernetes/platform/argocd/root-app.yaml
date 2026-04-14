@@ -1,0 +1,29 @@
+# ArgoCD Root Application — App of Apps
+#
+# This is the ONLY Application you apply manually.
+# It watches kubernetes/platform/argocd/apps/ in git and
+# auto-creates all other Applications from the manifests there.
+#
+# Bootstrap:
+#   kubectl apply -f root-app.yaml
+
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: root
+  namespace: argocd
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/camcast3/the-basement.git
+    targetRevision: main
+    path: kubernetes/platform/argocd/apps
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: argocd
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
