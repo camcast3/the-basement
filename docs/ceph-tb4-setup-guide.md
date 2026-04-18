@@ -14,7 +14,7 @@
 - [6. Create Storage Pools](#6-create-storage-pools)
 - [7. Verify Ceph Health](#7-verify-ceph-health)
 - [8. Add Ceph Storage to Proxmox](#8-add-ceph-storage-to-proxmox)
-- [9. Kubernetes Storage Integration](#9-kubernetes-storage-integration)
+- [9. Kubernetes Storage Integration (Rook External Cluster)](#9-kubernetes-storage-integration-rook-external-cluster)
 - [10. Performance Tuning](#10-performance-tuning)
 - [Troubleshooting](#troubleshooting)
 - [References](#references)
@@ -600,121 +600,180 @@ You can now create VMs and containers using Ceph-backed storage. When creating a
 
 ---
 
-## 9. Kubernetes Storage Integration
+## 9. Kubernetes Storage Integration (Rook External Cluster)
 
-This section covers connecting the Ceph cluster to a Kubernetes cluster (3 control planes + 6 workers on Talos Linux via Omni) for persistent storage. The setup provides block storage (RBD), shared filesystem (CephFS), and S3-compatible object storage (RGW).
+This section covers connecting the Proxmox-managed Ceph cluster to a Kubernetes cluster (3 control planes + 6 workers on Talos Linux via Omni) using **Rook in external cluster mode**. Rook does **not** deploy or manage Ceph daemons — it imports the existing cluster and provisions the CSI drivers so K8s workloads get `PersistentVolumes` backed by your Proxmox Ceph pools.
 
-### Ceph CSI Driver for Kubernetes
+### Why Rook External Mode (Not Raw Ceph CSI or Full Rook)
 
-The [Ceph CSI driver](https://github.com/ceph/ceph-csi) allows Kubernetes to dynamically provision and mount Ceph volumes. You need two components: **RBD CSI** (for block storage) and **CephFS CSI** (for shared filesystems).
+| Approach | Ceph Managed By | Pros | Cons |
+|----------|----------------|------|------|
+| **Full Rook-Ceph** | Rook (inside K8s) | Single-pane K8s management | OSDs as pods on Talos is complex; double management with Proxmox |
+| **Raw Ceph CSI** | Manual Helm charts | Lightweight | Manual secret/config management; no CephCluster abstraction |
+| **Rook External** ✅ | Proxmox (outside K8s) | Best of both — Proxmox manages Ceph, Rook provides K8s-native CRDs and CSI | Requires export script to bridge the two |
 
-#### Step 1: Create Ceph User for Kubernetes
+Rook external mode is the right fit because:
+- **Talos is immutable** — no SSH, no package manager. Running OSD pods on Talos nodes requires raw disk passthrough and is hard to troubleshoot.
+- **Proxmox owns the Ceph cluster** — MONs, MGRs, and OSDs are already running on the Proxmox hosts with a proven management UI.
+- **Rook provides the K8s glue** — CephCluster CRD, automatic CSI driver deployment, StorageClass management, and health monitoring via the Rook operator.
 
-On any Ceph/Proxmox node, create a dedicated CephX user for Kubernetes CSI access:
+### Architecture
 
-```bash
-# Create a user with access to the block and CephFS pools
-ceph auth get-or-create client.kubernetes \
-  mon 'profile rbd, allow r' \
-  osd 'profile rbd pool=ceph-block, profile rbd pool=ceph-block-fast, allow rwx pool=cephfs_data' \
-  mds 'allow rw' \
-  -o /etc/ceph/ceph.client.kubernetes.keyring
+```
+Proxmox Hosts (bare metal)
+├── Ceph MONs + MGRs + OSDs        ← managed by Proxmox (pveceph)
+├── Ceph Pools (ceph-block, ceph-block-fast, cephfs)
+├── RGW instances (S3 endpoint)
+│
+└── Talos K8s Nodes (VMs provisioned via Omni)
+    └── Rook Operator (external mode)
+        ├── CephCluster CR (type: external)
+        ├── RBD CSI Driver  → mounts RBD volumes from Proxmox Ceph
+        └── CephFS CSI Driver → mounts CephFS from Proxmox Ceph
 ```
 
-Retrieve the key and cluster ID for Kubernetes secrets:
+### Step 1: Export Cluster Config from Proxmox
+
+On any Proxmox/Ceph node (e.g., pve01), use the Rook helper script to generate the import manifests:
 
 ```bash
-# Get the user key
-ceph auth get-key client.kubernetes
+# Download the export script from the Rook repository
+curl -O https://raw.githubusercontent.com/rook/rook/master/deploy/examples/create-external-cluster-resources.py
 
-# Get the cluster FSID
-ceph fsid
-
-# Get monitor addresses
-ceph mon dump | grep "mon\." | awk '{print $2}' | sed 's|/0||'
+# Run the export script
+python3 create-external-cluster-resources.py \
+  --rbd-data-pool-name ceph-block \
+  --cephfs-filesystem-name cephfs \
+  --rgw-endpoint 192.168.86.21:7480 \
+  --namespace rook-ceph-external \
+  --format bash
 ```
 
-#### Step 2: Deploy Ceph CSI Driver via Helm
+This outputs a set of `export` statements containing:
+- Cluster FSID
+- Monitor endpoints
+- CephX keys for CSI provisioner, node plugin, and RGW
+- Pool and filesystem names
+
+> **📝 Note:** Save the output — you'll paste it into a shell before running the import script in Step 3.
+
+**Additional pools:** If you also want `ceph-block-fast` available in K8s, create a separate CephX user for it:
+
+```bash
+ceph auth get-or-create client.csi-rbd-fast \
+  mon 'profile rbd' \
+  osd 'profile rbd pool=ceph-block-fast' \
+  -o /etc/ceph/ceph.client.csi-rbd-fast.keyring
+```
+
+### Step 2: Deploy the Rook Operator
 
 On a machine with `kubectl` and `helm` configured for your K8s cluster:
 
 ```bash
-# Add the Ceph CSI Helm repo
-helm repo add ceph-csi https://ceph.github.io/csi-charts
+# Add the Rook Helm repo
+helm repo add rook-release https://charts.rook.io/release
 helm repo update
 
-# Create namespace
-kubectl create namespace ceph-csi
+# Create the namespace
+kubectl create namespace rook-ceph-external
 
-# Deploy RBD CSI driver
-helm install ceph-csi-rbd ceph-csi/ceph-csi-rbd \
-  --namespace ceph-csi \
-  --set csiConfig[0].clusterID=<ceph-fsid> \
-  --set csiConfig[0].monitors[0]=192.168.86.21:6789 \
-  --set csiConfig[0].monitors[1]=192.168.86.22:6789 \
-  --set csiConfig[0].monitors[2]=192.168.86.23:6789
-
-# Deploy CephFS CSI driver
-helm install ceph-csi-cephfs ceph-csi/ceph-csi-cephfs \
-  --namespace ceph-csi \
-  --set csiConfig[0].clusterID=<ceph-fsid> \
-  --set csiConfig[0].monitors[0]=192.168.86.21:6789 \
-  --set csiConfig[0].monitors[1]=192.168.86.22:6789 \
-  --set csiConfig[0].monitors[2]=192.168.86.23:6789
+# Deploy the Rook operator
+# The operator watches for CephCluster CRDs and manages CSI driver deployment
+helm install --create-namespace --namespace rook-ceph-external \
+  rook-ceph rook-release/rook-ceph \
+  --set csi.enableRbdDriver=true \
+  --set csi.enableCephfsDriver=true \
+  --set monitoring.enabled=false
 ```
 
-> **📝 Note:** Replace `<ceph-fsid>` with the output of `ceph fsid`. The monitor IPs are on the public/management network (`192.168.86.0/24`) because Kubernetes nodes connect as Ceph clients, not over the TB4 cluster network.
+Wait for the operator to be ready:
 
-#### Step 3: Create Kubernetes Secrets
+```bash
+kubectl -n rook-ceph-external rollout status deployment rook-ceph-operator
+```
+
+### Step 3: Import the External Cluster
+
+Download and run the Rook import script. This creates the Kubernetes secrets, ConfigMaps, and CephCluster CR that connect Rook to your Proxmox Ceph cluster:
+
+```bash
+# Download the import script
+curl -O https://raw.githubusercontent.com/rook/rook/master/deploy/examples/import-external-cluster.sh
+
+# Paste the export variables from Step 1, then run:
+chmod +x import-external-cluster.sh
+. import-external-cluster.sh
+```
+
+This creates:
+- **Secret** `rook-ceph-mon` — monitor endpoints and cluster FSID.
+- **ConfigMap** `rook-ceph-mon-endpoints` — monitor connection info for CSI.
+- **Secret** `rook-csi-rbd-provisioner` / `rook-csi-rbd-node` — CephX keys for the RBD CSI driver.
+- **Secret** `rook-csi-cephfs-provisioner` / `rook-csi-cephfs-node` — CephX keys for the CephFS CSI driver.
+
+### Step 4: Create the External CephCluster CR
 
 ```yaml
-# ceph-csi-secret.yaml
-apiVersion: v1
-kind: Secret
+# kubernetes/infrastructure/rook-ceph-external/cephcluster.yaml
+apiVersion: ceph.rook.io/v1
+kind: CephCluster
 metadata:
-  name: csi-rbd-secret
-  namespace: ceph-csi
-stringData:
-  userID: kubernetes
-  userKey: <output-of-ceph-auth-get-key>
----
-apiVersion: v1
-kind: Secret
-metadata:
-  name: csi-cephfs-secret
-  namespace: ceph-csi
-stringData:
-  adminID: kubernetes
-  adminKey: <output-of-ceph-auth-get-key>
+  name: rook-ceph-external
+  namespace: rook-ceph-external
+spec:
+  external:
+    enable: true
+  crashCollector:
+    disable: true
+  healthCheck:
+    daemonHealth:
+      mon:
+        disabled: false
+        interval: 60s
 ```
 
 ```bash
-kubectl apply -f ceph-csi-secret.yaml
+kubectl apply -f kubernetes/infrastructure/rook-ceph-external/cephcluster.yaml
 ```
 
-#### Step 4: Create StorageClasses
+Verify the external cluster is connected:
+
+```bash
+kubectl -n rook-ceph-external get CephCluster
+```
+
+Expected output:
+
+```
+NAME                  DATADIRHOSTPATH   MONCOUNT   AGE     PHASE       MESSAGE                  HEALTH
+rook-ceph-external                                 2m      Connected   Cluster connected         HEALTH_OK
+```
+
+### Step 5: Create StorageClasses
 
 **`ceph-rbd` — Default StorageClass for general block storage (SQL databases, general PVCs):**
 
 ```yaml
-# storageclass-ceph-rbd.yaml
+# kubernetes/infrastructure/rook-ceph-external/storageclass-rbd.yaml
 apiVersion: storage.k8s.io/v1
 kind: StorageClass
 metadata:
   name: ceph-rbd
   annotations:
     storageclass.kubernetes.io/is-default-class: "true"
-provisioner: rbd.csi.ceph.com
+provisioner: rook-ceph-external.rbd.csi.ceph.com
 parameters:
-  clusterID: <ceph-fsid>
+  clusterID: rook-ceph-external
   pool: ceph-block
+  imageFormat: "2"
   imageFeatures: layering
-  csi.storage.k8s.io/provisioner-secret-name: csi-rbd-secret
-  csi.storage.k8s.io/provisioner-secret-namespace: ceph-csi
-  csi.storage.k8s.io/controller-expand-secret-name: csi-rbd-secret
-  csi.storage.k8s.io/controller-expand-secret-namespace: ceph-csi
-  csi.storage.k8s.io/node-stage-secret-name: csi-rbd-secret
-  csi.storage.k8s.io/node-stage-secret-namespace: ceph-csi
+  csi.storage.k8s.io/provisioner-secret-name: rook-csi-rbd-provisioner
+  csi.storage.k8s.io/provisioner-secret-namespace: rook-ceph-external
+  csi.storage.k8s.io/controller-expand-secret-name: rook-csi-rbd-provisioner
+  csi.storage.k8s.io/controller-expand-secret-namespace: rook-ceph-external
+  csi.storage.k8s.io/node-stage-secret-name: rook-csi-rbd-node
+  csi.storage.k8s.io/node-stage-secret-namespace: rook-ceph-external
 reclaimPolicy: Retain
 allowVolumeExpansion: true
 mountOptions:
@@ -724,22 +783,23 @@ mountOptions:
 **`ceph-rbd-fast` — Low-latency block storage for cache workloads (Redis, session stores):**
 
 ```yaml
-# storageclass-ceph-rbd-fast.yaml
+# kubernetes/infrastructure/rook-ceph-external/storageclass-rbd-fast.yaml
 apiVersion: storage.k8s.io/v1
 kind: StorageClass
 metadata:
   name: ceph-rbd-fast
-provisioner: rbd.csi.ceph.com
+provisioner: rook-ceph-external.rbd.csi.ceph.com
 parameters:
-  clusterID: <ceph-fsid>
+  clusterID: rook-ceph-external
   pool: ceph-block-fast
+  imageFormat: "2"
   imageFeatures: layering
-  csi.storage.k8s.io/provisioner-secret-name: csi-rbd-secret
-  csi.storage.k8s.io/provisioner-secret-namespace: ceph-csi
-  csi.storage.k8s.io/controller-expand-secret-name: csi-rbd-secret
-  csi.storage.k8s.io/controller-expand-secret-namespace: ceph-csi
-  csi.storage.k8s.io/node-stage-secret-name: csi-rbd-secret
-  csi.storage.k8s.io/node-stage-secret-namespace: ceph-csi
+  csi.storage.k8s.io/provisioner-secret-name: rook-csi-rbd-provisioner
+  csi.storage.k8s.io/provisioner-secret-namespace: rook-ceph-external
+  csi.storage.k8s.io/controller-expand-secret-name: rook-csi-rbd-provisioner
+  csi.storage.k8s.io/controller-expand-secret-namespace: rook-ceph-external
+  csi.storage.k8s.io/node-stage-secret-name: rook-csi-rbd-node
+  csi.storage.k8s.io/node-stage-secret-namespace: rook-ceph-external
 reclaimPolicy: Delete
 allowVolumeExpansion: true
 mountOptions:
@@ -751,45 +811,86 @@ mountOptions:
 **`cephfs` — Shared filesystem for ReadWriteMany workloads:**
 
 ```yaml
-# storageclass-cephfs.yaml
+# kubernetes/infrastructure/rook-ceph-external/storageclass-cephfs.yaml
 apiVersion: storage.k8s.io/v1
 kind: StorageClass
 metadata:
   name: cephfs
-provisioner: cephfs.csi.ceph.com
+provisioner: rook-ceph-external.cephfs.csi.ceph.com
 parameters:
-  clusterID: <ceph-fsid>
+  clusterID: rook-ceph-external
   fsName: cephfs
   pool: cephfs_data
-  csi.storage.k8s.io/provisioner-secret-name: csi-cephfs-secret
-  csi.storage.k8s.io/provisioner-secret-namespace: ceph-csi
-  csi.storage.k8s.io/controller-expand-secret-name: csi-cephfs-secret
-  csi.storage.k8s.io/controller-expand-secret-namespace: ceph-csi
-  csi.storage.k8s.io/node-stage-secret-name: csi-cephfs-secret
-  csi.storage.k8s.io/node-stage-secret-namespace: ceph-csi
+  csi.storage.k8s.io/provisioner-secret-name: rook-csi-cephfs-provisioner
+  csi.storage.k8s.io/provisioner-secret-namespace: rook-ceph-external
+  csi.storage.k8s.io/controller-expand-secret-name: rook-csi-cephfs-provisioner
+  csi.storage.k8s.io/controller-expand-secret-namespace: rook-ceph-external
+  csi.storage.k8s.io/node-stage-secret-name: rook-csi-cephfs-node
+  csi.storage.k8s.io/node-stage-secret-namespace: rook-ceph-external
 reclaimPolicy: Retain
 allowVolumeExpansion: true
 ```
 
+Apply all StorageClasses:
+
 ```bash
-kubectl apply -f storageclass-ceph-rbd.yaml
-kubectl apply -f storageclass-ceph-rbd-fast.yaml
-kubectl apply -f storageclass-cephfs.yaml
+kubectl apply -f kubernetes/infrastructure/rook-ceph-external/storageclass-rbd.yaml
+kubectl apply -f kubernetes/infrastructure/rook-ceph-external/storageclass-rbd-fast.yaml
+kubectl apply -f kubernetes/infrastructure/rook-ceph-external/storageclass-cephfs.yaml
 ```
 
-#### StorageClass Selection Guide
+### Step 6: Verify the Integration
 
-| StorageClass   | Ceph Pool         | Access Mode      | Use Case                                         |
-|----------------|-------------------|------------------|--------------------------------------------------|
-| `ceph-rbd`     | `ceph-block`      | ReadWriteOnce    | PostgreSQL, MySQL, general stateful apps (default)|
-| `ceph-rbd-fast`| `ceph-block-fast` | ReadWriteOnce    | Redis, Memcached, session stores, caches          |
-| `cephfs`       | `cephfs_data`     | ReadWriteMany    | Shared config, static assets, multi-pod access    |
+```bash
+# Check StorageClasses
+kubectl get sc
+
+# Check CSI driver pods are running
+kubectl -n rook-ceph-external get pods
+
+# Check the CephCluster health
+kubectl -n rook-ceph-external get CephCluster -o jsonpath='{.items[0].status.ceph.health}'
+```
+
+**Test with a sample PVC:**
+
+```yaml
+# test-pvc.yaml
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: test-rbd-pvc
+spec:
+  accessModes:
+    - ReadWriteOnce
+  storageClassName: ceph-rbd
+  resources:
+    requests:
+      storage: 1Gi
+```
+
+```bash
+kubectl apply -f test-pvc.yaml
+kubectl get pvc test-rbd-pvc
+# Should show STATUS: Bound
+
+# Clean up
+kubectl delete pvc test-rbd-pvc
+```
+
+### StorageClass Selection Guide
+
+| StorageClass   | Ceph Pool         | Access Mode      | Use Case                                          |
+|----------------|-------------------|------------------|---------------------------------------------------|
+| `ceph-rbd`     | `ceph-block`      | ReadWriteOnce    | PostgreSQL, MySQL, general stateful apps (default) |
+| `ceph-rbd-fast`| `ceph-block-fast` | ReadWriteOnce    | Redis, Memcached, session stores, caches           |
+| `cephfs`       | `cephfs_data`     | ReadWriteMany    | Shared config, static assets, multi-pod access     |
 
 ### Ceph Object Gateway (RGW) for S3
 
 The RADOS Gateway provides an S3-compatible API for object storage. RGW runs on the Ceph/Proxmox nodes (not inside Kubernetes) and is accessed by K8s workloads via the S3 HTTP endpoint.
 
-#### Step 1: Deploy RGW on Ceph Nodes
+#### Deploy RGW on Ceph Nodes
 
 Install and enable RGW on each Proxmox/Ceph node:
 
@@ -858,7 +959,7 @@ curl http://192.168.86.21:7480
 
 You should get an XML response with `ListAllMyBucketsResult` (empty buckets list).
 
-#### Step 2: Create RGW User and Access Keys
+#### Create RGW User and Access Keys
 
 ```bash
 radosgw-admin user create \
@@ -870,7 +971,7 @@ radosgw-admin user create \
 
 > **💡 Tip:** Generate keys with `openssl rand -hex 20` for the access key and `openssl rand -hex 40` for the secret key.
 
-#### Step 3: Using S3 from Kubernetes Workloads
+#### Using S3 from Kubernetes Workloads
 
 Store the RGW credentials as a Kubernetes secret:
 
@@ -1133,8 +1234,9 @@ pveceph osd create /dev/nvmeXn1
 - [Ceph Documentation — Architecture](https://docs.ceph.com/en/reef/architecture/)
 - [Ceph Documentation — BlueStore Config](https://docs.ceph.com/en/reef/rados/configuration/bluestore-config-ref/)
 - [Ceph Performance Tuning](https://docs.ceph.com/en/reef/rados/configuration/osd-config-ref/)
-- [Ceph CSI Driver — GitHub](https://github.com/ceph/ceph-csi) — RBD and CephFS CSI provisioner for Kubernetes
-- [Ceph CSI Helm Charts](https://ceph.github.io/csi-charts) — Helm deployment for Ceph CSI drivers
+- [Rook Documentation — External Cluster](https://rook.io/docs/rook/latest/CRDs/Cluster/external-cluster/) — Connecting Rook to an existing Ceph cluster
+- [Rook Helm Charts](https://charts.rook.io/release) — Rook operator Helm deployment
+- [Rook External Cluster Scripts](https://github.com/rook/rook/tree/master/deploy/examples) — `create-external-cluster-resources.py` and `import-external-cluster.sh`
 - [Ceph RADOS Gateway (RGW)](https://docs.ceph.com/en/reef/radosgw/) — S3-compatible object storage on Ceph
 - [taslabs-net Thunderbolt 4 Networking Guide](https://github.com/taslabs-net/thunderbolt-networking) — TB4 mesh setup reference for Proxmox clusters
 - [Proxmox VE No-Subscription Repository](https://pve.proxmox.com/wiki/Package_Repositories#sysadmin_no_subscription_repo)
