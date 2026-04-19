@@ -1,0 +1,44 @@
+# Rook-Ceph Operator — external cluster mode
+# Only deploys the operator + CSI drivers, NOT Ceph daemons
+crds:
+  enabled: true
+
+csi:
+  enableRbdDriver: true
+  enableCephfsDriver: true
+
+  # CSI plugin resource limits for Talos nodes
+  csiRBDPluginResource: |
+    - name: driver-registrar
+      resource:
+        requests:
+          memory: 128Mi
+          cpu: 50m
+        limits:
+          memory: 256Mi
+    - name: csi-rbdplugin
+      resource:
+        requests:
+          memory: 512Mi
+          cpu: 250m
+        limits:
+          memory: 1Gi
+
+  csiCephFSPluginResource: |
+    - name: driver-registrar
+      resource:
+        requests:
+          memory: 128Mi
+          cpu: 50m
+        limits:
+          memory: 256Mi
+    - name: csi-cephfsplugin
+      resource:
+        requests:
+          memory: 512Mi
+          cpu: 250m
+        limits:
+          memory: 1Gi
+
+# We only need the operator, not a full Rook-managed cluster
+enableDiscoveryDaemon: false
