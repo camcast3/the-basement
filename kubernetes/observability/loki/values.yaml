@@ -82,9 +82,7 @@ singleBinary:
   persistence:
     enabled: true
     size: 20Gi
-    # TODO: Set storageClassName once ceph-csi-rbd StorageClass is available
-    # storageClass: ceph-rbd
-    storageClass: null
+    storageClass: ceph-rbd
 
 # Disable SimpleScalable targets (not used in SingleBinary mode)
 write:
