@@ -123,15 +123,15 @@ spec:
               memory: 128Mi
           readinessProbe:
             httpGet:
-              path: /readyz
-              port: telemetry
+              path: /healthz
+              port: metrics
             initialDelaySeconds: 5
             timeoutSeconds: 5
           livenessProbe:
             httpGet:
-              path: /livez
-              port: telemetry
-            initialDelaySeconds: 30
+              path: /healthz
+              port: metrics
+            initialDelaySeconds: 15
             timeoutSeconds: 5
             periodSeconds: 30
 ---
