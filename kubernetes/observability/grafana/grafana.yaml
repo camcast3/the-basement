@@ -113,6 +113,21 @@ data:
           path: /var/lib/grafana/dashboards-external
           foldersFromFilesStructure: false
 ---
+# External dashboard registry — add entries to fetch upstream dashboards at
+# pinned versions. Each key is the output filename (without .json), and the
+# value is the raw download URL. Renovate regex managers track the version
+# tags embedded in URLs so PRs are opened automatically on new releases.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: grafana-external-dashboards
+  namespace: monitoring
+  labels:
+    app.kubernetes.io/name: grafana
+data:
+  # thecfu/scraparr v3.0.3
+  scraparr: "https://raw.githubusercontent.com/thecfu/scraparr/v3.0.3/dashboards/dashboard1.json"
+---
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -135,19 +150,22 @@ spec:
         runAsUser: 472
         runAsNonRoot: true
       initContainers:
-        # Fetch external dashboards from upstream repos at pinned versions
         - name: fetch-external-dashboards
           image: busybox:1.37
           command:
             - /bin/sh
             - -c
             - |
-              # Scraparr dashboard — thecfu/scraparr v3.0.3
-              wget -q -O /dashboards/scraparr.json \
-                "https://raw.githubusercontent.com/thecfu/scraparr/v3.0.3/dashboards/dashboard1.json" \
-                && echo "Scraparr dashboard downloaded" \
-                || echo "WARNING: failed to download Scraparr dashboard"
+              for entry in /registry/*; do
+                name=$(basename "$entry")
+                url=$(cat "$entry")
+                wget -q -O "/dashboards/${name}.json" "$url" \
+                  && echo "OK: ${name}" \
+                  || echo "WARN: failed to download ${name}"
+              done
           volumeMounts:
+            - name: dashboard-registry
+              mountPath: /registry
             - name: dashboards-external
               mountPath: /dashboards
       containers:
@@ -211,6 +229,9 @@ spec:
             name: grafana-dashboard-provider
         - name: dashboards-external
           emptyDir: {}
+        - name: dashboard-registry
+          configMap:
+            name: grafana-external-dashboards
         - name: dashboards
           projected:
             sources:
