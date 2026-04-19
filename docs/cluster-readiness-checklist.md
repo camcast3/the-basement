@@ -51,10 +51,10 @@ These services run outside Kubernetes and must be ready before the cluster can b
 
 ### Infisical (Secrets Management)
 
-- [ ] Infisical instance running (TrueNAS at `infisical.local.negativezone.cc`)
-- [ ] Create project `k8s-homelab`, environment `prod`
-- [ ] Add secret: `/external-dns/PIHOLE_PASSWORD`
-- [ ] Add secret: `/cert-manager/CLOUDFLARE_API_TOKEN`
+- [x] Infisical instance running (TrueNAS at `infisical.local.negativezone.cc`)
+- [x] Create project `k8s-homelab`, environment `prod`
+- [x] Add secret: `PIHOLE_PASSWORD`
+- [x] Add secret: `CLOUDFLARE_API_TOKEN`
 - [ ] Create Machine Identity with Kubernetes Auth method
 - [ ] Verify identity can authenticate from the K8s cluster network
 
