@@ -1244,6 +1244,197 @@ data:
             "tooltip": { "mode": "multi", "sort": "desc" },
             "legend": { "displayMode": "list", "placement": "bottom" }
           }
+        },
+        {
+          "id": 24,
+          "type": "row",
+          "title": "NZBGet",
+          "collapsed": false,
+          "gridPos": { "x": 0, "y": 54, "w": 24, "h": 1 }
+        },
+        {
+          "id": 25,
+          "type": "stat",
+          "title": "Download Speed",
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "gridPos": { "x": 0, "y": 55, "w": 6, "h": 4 },
+          "targets": [
+            {
+              "refId": "A",
+              "expr": "nzbget_speed_bytes{job=\"nzbget\"}",
+              "legendFormat": "Speed"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "unit": "Bps",
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  { "color": "red", "value": null },
+                  { "color": "yellow", "value": 1048576 },
+                  { "color": "green", "value": 10485760 }
+                ]
+              }
+            },
+            "overrides": []
+          },
+          "options": { "graphMode": "area", "colorMode": "value", "textMode": "auto" }
+        },
+        {
+          "id": 26,
+          "type": "stat",
+          "title": "Queue Size",
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "gridPos": { "x": 6, "y": 55, "w": 6, "h": 4 },
+          "targets": [
+            {
+              "refId": "A",
+              "expr": "nzbget_remaining_bytes{job=\"nzbget\"}",
+              "legendFormat": "Remaining"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "unit": "decbytes",
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  { "color": "green", "value": null },
+                  { "color": "yellow", "value": 1073741824 },
+                  { "color": "red", "value": 10737418240 }
+                ]
+              }
+            },
+            "overrides": []
+          },
+          "options": { "graphMode": "none", "colorMode": "value", "textMode": "auto" }
+        },
+        {
+          "id": 27,
+          "type": "stat",
+          "title": "Disk Free",
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "gridPos": { "x": 12, "y": 55, "w": 6, "h": 4 },
+          "targets": [
+            {
+              "refId": "A",
+              "expr": "nzbget_disk_free_bytes{job=\"nzbget\"}",
+              "legendFormat": "Free"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "unit": "decbytes",
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  { "color": "red", "value": null },
+                  { "color": "yellow", "value": 10737418240 },
+                  { "color": "green", "value": 107374182400 }
+                ]
+              }
+            },
+            "overrides": []
+          },
+          "options": { "graphMode": "none", "colorMode": "value", "textMode": "auto" }
+        },
+        {
+          "id": 28,
+          "type": "stat",
+          "title": "Downloaded Total",
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "gridPos": { "x": 18, "y": 55, "w": 6, "h": 4 },
+          "targets": [
+            {
+              "refId": "A",
+              "expr": "nzbget_downloaded_bytes_total{job=\"nzbget\"}",
+              "legendFormat": "Total"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "unit": "decbytes"
+            },
+            "overrides": []
+          },
+          "options": { "graphMode": "none", "colorMode": "value", "textMode": "auto" }
+        },
+        {
+          "id": 29,
+          "type": "timeseries",
+          "title": "Download Speed Over Time",
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "gridPos": { "x": 0, "y": 59, "w": 12, "h": 8 },
+          "targets": [
+            {
+              "refId": "A",
+              "expr": "nzbget_speed_bytes{job=\"nzbget\"}",
+              "legendFormat": "Download Speed"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "unit": "Bps",
+              "custom": {
+                "drawStyle": "line",
+                "lineInterpolation": "smooth",
+                "fillOpacity": 20,
+                "pointSize": 5,
+                "showPoints": "auto",
+                "gradientMode": "scheme"
+              },
+              "color": { "mode": "palette-classic" }
+            },
+            "overrides": []
+          },
+          "options": {
+            "tooltip": { "mode": "single" },
+            "legend": { "displayMode": "list", "placement": "bottom" }
+          }
+        },
+        {
+          "id": 30,
+          "type": "timeseries",
+          "title": "Articles (Success vs Failed)",
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "gridPos": { "x": 12, "y": 59, "w": 12, "h": 8 },
+          "targets": [
+            {
+              "refId": "A",
+              "expr": "rate(nzbget_articles_success_total{job=\"nzbget\"}[5m])",
+              "legendFormat": "Success/s"
+            },
+            {
+              "refId": "B",
+              "expr": "rate(nzbget_articles_failed_total{job=\"nzbget\"}[5m])",
+              "legendFormat": "Failed/s"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "unit": "short",
+              "custom": {
+                "drawStyle": "line",
+                "lineInterpolation": "smooth",
+                "fillOpacity": 10,
+                "pointSize": 5,
+                "showPoints": "auto"
+              }
+            },
+            "overrides": [
+              {
+                "matcher": { "id": "byName", "options": "Failed/s" },
+                "properties": [
+                  { "id": "color", "value": { "fixedColor": "red", "mode": "fixed" } }
+                ]
+              }
+            ]
+          },
+          "options": {
+            "tooltip": { "mode": "multi", "sort": "desc" },
+            "legend": { "displayMode": "list", "placement": "bottom" }
+          }
         }
       ],
       "templating": {
@@ -1266,5 +1457,5 @@ data:
       "fiscalYearStartMonth": 0,
       "liveNow": false,
       "weekStart": "",
-      "version": 1
+      "version": 2
     }

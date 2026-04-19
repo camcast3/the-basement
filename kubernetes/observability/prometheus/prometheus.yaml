@@ -176,6 +176,12 @@ data:
             labels:
               cluster: proxmox-ceph
 
+      # NZBGet exporter (Docker host at 192.168.86.217)
+      - job_name: nzbget
+        scrape_interval: 30s
+        static_configs:
+          - targets: ["192.168.86.217:9452"]
+
       # Cilium agent metrics (DaemonSet on every node)
       - job_name: cilium-agent
         kubernetes_sd_configs:
