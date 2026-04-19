@@ -76,6 +76,16 @@
       ],
       "depNameTemplate": "argoproj/argo-cd",
       "datasourceTemplate": "github-releases"
+    },
+    {
+      "customType": "regex",
+      "description": "Track Scraparr dashboard version pinned in Grafana init container",
+      "fileMatch": ["kubernetes/observability/grafana/grafana\\.yaml$"],
+      "matchStrings": [
+        "thecfu/scraparr/(?<currentValue>v[\\d\\.]+)/dashboards/"
+      ],
+      "depNameTemplate": "thecfu/scraparr",
+      "datasourceTemplate": "github-releases"
     }
   ]
 }

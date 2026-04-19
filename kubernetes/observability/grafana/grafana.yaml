@@ -102,6 +102,16 @@ data:
         options:
           path: /var/lib/grafana/dashboards
           foldersFromFilesStructure: false
+      - name: external
+        orgId: 1
+        folder: 'Scraparr'
+        type: file
+        disableDeletion: false
+        editable: false
+        updateIntervalSeconds: 86400
+        options:
+          path: /var/lib/grafana/dashboards-external
+          foldersFromFilesStructure: false
 ---
 apiVersion: apps/v1
 kind: Deployment
@@ -124,6 +134,22 @@ spec:
         fsGroup: 472
         runAsUser: 472
         runAsNonRoot: true
+      initContainers:
+        # Fetch external dashboards from upstream repos at pinned versions
+        - name: fetch-external-dashboards
+          image: busybox:1.37
+          command:
+            - /bin/sh
+            - -c
+            - |
+              # Scraparr dashboard — thecfu/scraparr v3.0.3
+              wget -q -O /dashboards/scraparr.json \
+                "https://raw.githubusercontent.com/thecfu/scraparr/v3.0.3/dashboards/dashboard1.json" \
+                && echo "Scraparr dashboard downloaded" \
+                || echo "WARNING: failed to download Scraparr dashboard"
+          volumeMounts:
+            - name: dashboards-external
+              mountPath: /dashboards
       containers:
         - name: grafana
           image: grafana/grafana:12.4.3
@@ -159,6 +185,8 @@ spec:
               mountPath: /etc/grafana/provisioning/dashboards
             - name: dashboards
               mountPath: /var/lib/grafana/dashboards
+            - name: dashboards-external
+              mountPath: /var/lib/grafana/dashboards-external
             - name: data
               mountPath: /var/lib/grafana
           readinessProbe:
@@ -181,6 +209,8 @@ spec:
         - name: dashboard-provider
           configMap:
             name: grafana-dashboard-provider
+        - name: dashboards-external
+          emptyDir: {}
         - name: dashboards
           projected:
             sources:
