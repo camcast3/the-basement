@@ -80,12 +80,12 @@ Full setup instructions in [Omni + Authentik Setup Guide](omni-authentik-setup-g
 
 Provision the Talos Linux K8s cluster via Omni. Full plan in [K8s Omni Proxmox Plan](k8s-omni-proxmox-plan.md).
 
-- [ ] Omni running with Proxmox infrastructure provider — [Omni + Authentik Guide](omni-authentik-setup-guide.md)
-- [ ] Machine classes defined — [K8s Omni Plan: Machine Classes](k8s-omni-proxmox-plan.md#2-machine-classes)
-- [ ] Cluster template applied (3 control planes + 6 workers)
-- [ ] All nodes show `Ready` in Omni dashboard
-- [ ] `omnictl kubeconfig k8s-homelab > ~/.kube/config`
-- [ ] `kubectl get nodes` shows all 9 nodes `Ready`
+- [x] Omni running with Proxmox infrastructure provider — [Omni + Authentik Guide](omni-authentik-setup-guide.md)
+- [x] Machine classes defined — [K8s Omni Plan: Machine Classes](k8s-omni-proxmox-plan.md#2-machine-classes)
+- [x] Cluster template applied (3 control planes + 6 workers)
+- [x] All nodes show `Ready` in Omni dashboard
+- [x] `omnictl kubeconfig k8s-homelab > ~/.kube/config`
+- [x] `kubectl get nodes` shows all 9 nodes `Ready`
 
 ---
 
@@ -103,32 +103,32 @@ helm install argocd argo/argo-cd -n argocd --create-namespace \
 kubectl apply -f kubernetes/platform/argocd/root-app.yaml
 ```
 
-- [ ] ArgoCD installed via Helm
-- [ ] Root app applied (`kubernetes/platform/argocd/root-app.yaml`)
+- [x] ArgoCD installed via Helm
+- [x] Root app applied (`kubernetes/platform/argocd/root-app.yaml`)
 - [ ] ArgoCD UI accessible and SSO login works (Authentik)
 
 ### Verify ArgoCD-managed components sync
 
 **Infrastructure** — [GitOps Architecture: Adding Components](k8s-gitops-architecture.md#adding-a-new-component)
 
-- [ ] Cilium (CNI + Gateway API)
-- [ ] MetalLB (L2 LoadBalancer, pool `192.168.86.20-49`)
-- [ ] cert-manager + ClusterIssuer (Let's Encrypt via Cloudflare DNS)
-- [ ] external-dns (Pi-hole provider)
-- [ ] Infisical operator (syncs secrets from Infisical → K8s)
-- [ ] Spegel (peer-to-peer image distribution)
-- [ ] Descheduler
+- [x] Cilium (CNI + Gateway API)
+- [x] MetalLB (L2 LoadBalancer, pool `192.168.86.20-49`)
+- [x] cert-manager + ClusterIssuer (Let's Encrypt via Cloudflare DNS)
+- [ ] external-dns (Pi-hole provider) — ⏳ blocked on Infisical secret (`pihole-password`)
+- [x] Infisical operator (syncs secrets from Infisical → K8s)
+- [x] Spegel (peer-to-peer image distribution)
+- [x] Descheduler
 
 **Platform**
 
 - [ ] ArgoCD (self-managed after bootstrap)
-- [ ] Argo Rollouts
+- [x] Argo Rollouts
 
 **Observability**
 
-- [ ] kube-prometheus-stack (Prometheus + Grafana)
-- [ ] Loki (log aggregation)
-- [ ] Alloy (telemetry collector)
+- [x] kube-prometheus-stack (Prometheus + Grafana)
+- [ ] Loki (log aggregation) — ⏳ blocked on StorageClass (Phase 5)
+- [x] Alloy (telemetry collector)
 - [ ] Grafana SSO login works (Authentik)
 
 ---
@@ -157,10 +157,10 @@ Connect the Proxmox Ceph cluster to K8s via Rook. Full instructions in [Ceph TB4
 
 ## Phase 6: Ingress & Networking
 
-- [ ] Create a `Gateway` resource (Cilium Gateway API) for HTTP/HTTPS traffic
-- [ ] Verify Gateway gets a MetalLB `LoadBalancer` IP from the homelab pool
+- [x] Create a `Gateway` resource (Cilium Gateway API) for HTTP/HTTPS traffic
+- [x] Verify Gateway gets a MetalLB `LoadBalancer` IP from the homelab pool
 - [ ] Create `HTTPRoute` for ArgoCD UI
-- [ ] Create `HTTPRoute` for Grafana
+- [x] Create `HTTPRoute` for Grafana
 - [ ] Verify TLS certificates issued by cert-manager
 - [ ] Verify external-dns creates DNS records in Pi-hole
 
