@@ -32,7 +32,7 @@ prometheus:
 envoy:
   prometheus:
     enabled: true
-    port: 9964
+    port: "9964"
     servicePort: 9964
 
 # Cilium Operator metrics
