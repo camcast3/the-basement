@@ -71,6 +71,7 @@ hubble:
 # Gateway API support (replaces traditional Ingress + Istio)
 gatewayAPI:
   enabled: true
+  externalTrafficPolicy: Local
 
 # Talos doesn't allow loading kernel modules from pods
 securityContext:
