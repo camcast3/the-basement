@@ -82,75 +82,6 @@ data:
           path: /var/lib/grafana/dashboards
           foldersFromFilesStructure: false
 ---
-apiVersion: v1
-kind: ConfigMap
-metadata:
-  name: grafana-dashboards
-  namespace: monitoring
-  labels:
-    app.kubernetes.io/name: grafana
-data:
-  cluster-overview.json: |
-    {
-      "annotations": { "list": [] },
-      "editable": true,
-      "fiscalYearStartMonth": 0,
-      "graphTooltip": 1,
-      "links": [],
-      "panels": [
-        {
-          "title": "CPU Usage by Node",
-          "type": "timeseries",
-          "gridPos": { "h": 8, "w": 12, "x": 0, "y": 0 },
-          "targets": [{
-            "expr": "100 - (avg by(node) (rate(node_cpu_seconds_total{mode=\"idle\"}[5m])) * 100)",
-            "legendFormat": "{{node}}"
-          }],
-          "fieldConfig": { "defaults": { "unit": "percent" } }
-        },
-        {
-          "title": "Memory Usage by Node",
-          "type": "timeseries",
-          "gridPos": { "h": 8, "w": 12, "x": 12, "y": 0 },
-          "targets": [{
-            "expr": "100 * (1 - node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes)",
-            "legendFormat": "{{node}}"
-          }],
-          "fieldConfig": { "defaults": { "unit": "percent" } }
-        },
-        {
-          "title": "Pod Count by Namespace",
-          "type": "bargauge",
-          "gridPos": { "h": 8, "w": 12, "x": 0, "y": 8 },
-          "targets": [{
-            "expr": "count by(namespace) (kube_pod_info)",
-            "legendFormat": "{{namespace}}"
-          }]
-        },
-        {
-          "title": "Network I/O by Node",
-          "type": "timeseries",
-          "gridPos": { "h": 8, "w": 12, "x": 12, "y": 8 },
-          "targets": [
-            {
-              "expr": "rate(node_network_receive_bytes_total{device!~\"lo|cni.*|veth.*\"}[5m])",
-              "legendFormat": "{{node}} rx {{device}}"
-            },
-            {
-              "expr": "rate(node_network_transmit_bytes_total{device!~\"lo|cni.*|veth.*\"}[5m])",
-              "legendFormat": "{{node}} tx {{device}}"
-            }
-          ],
-          "fieldConfig": { "defaults": { "unit": "Bps" } }
-        }
-      ],
-      "schemaVersion": 39,
-      "templating": { "list": [] },
-      "time": { "from": "now-1h", "to": "now" },
-      "title": "Cluster Overview",
-      "uid": "cluster-overview"
-    }
----
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -220,8 +151,20 @@ spec:
           configMap:
             name: grafana-dashboard-provider
         - name: dashboards
-          configMap:
-            name: grafana-dashboards
+          projected:
+            sources:
+              - configMap:
+                  name: grafana-dashboards-k8s
+              - configMap:
+                  name: grafana-dashboards-network
+              - configMap:
+                  name: grafana-dashboards-storage
+              - configMap:
+                  name: grafana-dashboards-apps
+              - configMap:
+                  name: grafana-dashboards-homelab
+              - configMap:
+                  name: grafana-dashboards-logs
         # TODO: Switch to PVC once Rook-Ceph StorageClass is available
         - name: data
           emptyDir: {}

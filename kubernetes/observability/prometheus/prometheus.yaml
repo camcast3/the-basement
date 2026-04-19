@@ -335,3 +335,25 @@ spec:
       targetPort: http
   selector:
     app.kubernetes.io/name: prometheus
+---
+# HTTPRoute for remote_write ingestion from external hosts (e.g., watchtower)
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: prometheus-ingest
+  namespace: monitoring
+spec:
+  parentRefs:
+    - name: cilium-gateway
+      namespace: kube-system
+  hostnames:
+    - prom-ingest.local.negativezone.cc
+  rules:
+    - matches:
+        - path:
+            type: Exact
+            value: /api/v1/write
+          method: POST
+      backendRefs:
+        - name: prometheus
+          port: 9090
