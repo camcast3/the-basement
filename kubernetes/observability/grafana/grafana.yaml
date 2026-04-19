@@ -12,7 +12,7 @@ data:
   datasources.yaml: |
     apiVersion: 1
     datasources:
-      - name: Prometheus
+      - name: Prometheus - K8s
         type: prometheus
         uid: prometheus
         url: http://prometheus.monitoring.svc:9090
@@ -20,7 +20,16 @@ data:
         isDefault: true
         jsonData:
           timeInterval: 30s
-      - name: Loki
+      - name: Prometheus - Watchtower
+        type: prometheus
+        uid: prometheus-watchtower
+        url: https://prometheus.local.negativezone.cc
+        access: proxy
+        isDefault: false
+        jsonData:
+          timeInterval: 30s
+          tlsSkipVerify: true
+      - name: Loki - K8s
         type: loki
         uid: loki
         url: http://loki-gateway.monitoring.svc:80
@@ -28,7 +37,7 @@ data:
         isDefault: false
         jsonData:
           maxLines: 1000
-      - name: Alertmanager
+      - name: Alertmanager - K8s
         type: alertmanager
         uid: alertmanager
         url: http://alertmanager.monitoring.svc:9093
