@@ -12,6 +12,7 @@ spec:
       chart: metallb
       targetRevision: 0.14.9
       helm:
+        skipCrds: true
         valueFiles:
           - $values/kubernetes/infrastructure/metallb/values.yaml
     - repoURL: https://github.com/camcast3/the-basement.git
