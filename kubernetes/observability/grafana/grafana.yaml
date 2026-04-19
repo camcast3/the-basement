@@ -46,7 +46,7 @@ metadata:
 data:
   grafana.ini: |
     [server]
-    root_url = http://grafana.local.negativezone.cc
+    root_url = https://grafana.local.negativezone.cc
 
     [analytics]
     reporting_enabled = false

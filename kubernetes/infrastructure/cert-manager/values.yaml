@@ -6,6 +6,11 @@ installCRDs: true
 
 replicaCount: 2
 
+config:
+  apiVersion: controller.config.cert-manager.io/v1alpha1
+  kind: ControllerConfiguration
+  enableGatewayAPI: true
+
 resources:
   requests:
     cpu: 10m
@@ -19,7 +24,7 @@ webhook:
 cainjector:
   replicaCount: 1
 
-# Prometheus metrics (enable after kube-prometheus-stack is deployed)
+# Prometheus metrics
 prometheus:
   enabled: false
   servicemonitor:
