@@ -1,5 +1,5 @@
-# OpenTelemetry Collector Contrib v0.150.0
-# Image: otel/opentelemetry-collector-contrib:0.150.0
+# OpenTelemetry Collector Contrib v0.149.0
+# Image: otel/opentelemetry-collector-contrib:0.149.0
 #
 # Receives OTLP traces/metrics/logs, exports to Prometheus and Loki.
 # Apps send telemetry to otel-collector.monitoring.svc:4317 (gRPC)
@@ -170,7 +170,7 @@ spec:
         runAsUser: 65534
       containers:
         - name: otel-collector
-          image: otel/opentelemetry-collector-contrib:0.150.0
+          image: otel/opentelemetry-collector-contrib:0.149.0
           args:
             - --config=/etc/otel/config.yaml
           ports:
