@@ -10,7 +10,7 @@ spec:
   sources:
     - repoURL: https://dl.cloudsmith.io/public/infisical/helm-charts/helm/charts/
       chart: secrets-operator
-      targetRevision: 0.10.30
+      targetRevision: 0.10.32
       helm:
         valueFiles:
           - $values/kubernetes/infrastructure/infisical-operator/values.yaml
