@@ -1,0 +1,212 @@
+# bootstrap-argocd.yaml
+# Installs ArgoCD on a Talos/Omni Kubernetes cluster and applies the root App-of-Apps.
+#
+# This is the GitOps bootstrap — ArgoCD manages everything else, but
+# ArgoCD itself needs an initial install (chicken-and-egg).
+#
+# Prerequisites:
+#   - A working kubeconfig for the target cluster
+#   - kubectl available on the control machine
+#
+# Usage:
+#   ansible-playbook playbooks/bootstrap-argocd.yaml
+#   ansible-playbook playbooks/bootstrap-argocd.yaml -e argocd_version=v3.3.6
+#   ansible-playbook playbooks/bootstrap-argocd.yaml -e kubeconfig=~/.kube/my-cluster
+#
+# What it does:
+#   1. Creates the argocd namespace
+#   2. Installs ArgoCD from the official manifest (pinned version)
+#   3. Patches argocd-cmd-params-cm with server.insecure=true (TLS terminated at gateway)
+#   4. Waits for ArgoCD server to be ready
+#   5. Applies the root Application (app-of-apps pattern)
+---
+- name: Bootstrap ArgoCD on Kubernetes Cluster
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  vars:
+    argocd_version: "v3.3.6"
+    argocd_namespace: "argocd"
+    kubeconfig: "{{ lookup('env', 'KUBECONFIG') | default('~/.kube/config', true) }}"
+    repo_root: "{{ playbook_dir }}/../../"
+    root_app_manifest: "{{ repo_root }}/kubernetes/platform/argocd/root-app.yaml"
+    argocd_install_url: "https://raw.githubusercontent.com/argoproj/argo-cd/{{ argocd_version }}/manifests/install.yaml"
+
+  tasks:
+    # =========================================================================
+    # 1. Pre-flight Checks
+    # =========================================================================
+    - name: Verify kubectl is available
+      ansible.builtin.command: kubectl version --client --short
+      environment:
+        KUBECONFIG: "{{ kubeconfig }}"
+      register: kubectl_check
+      changed_when: false
+      failed_when: kubectl_check.rc != 0
+
+    - name: Verify cluster connectivity
+      ansible.builtin.command: kubectl cluster-info
+      environment:
+        KUBECONFIG: "{{ kubeconfig }}"
+      register: cluster_check
+      changed_when: false
+      failed_when: cluster_check.rc != 0
+
+    - name: Display target cluster
+      ansible.builtin.debug:
+        msg: "Target cluster: {{ cluster_check.stdout_lines[0] }}"
+
+    # =========================================================================
+    # 2. Create Namespace
+    # =========================================================================
+    - name: Create argocd namespace
+      ansible.builtin.command: >
+        kubectl create namespace {{ argocd_namespace }} --dry-run=client -o yaml |
+        kubectl apply -f -
+      environment:
+        KUBECONFIG: "{{ kubeconfig }}"
+      changed_when: "'created' in ns_result.stdout"
+      register: ns_result
+
+    # =========================================================================
+    # 3. Install ArgoCD
+    # =========================================================================
+    - name: Check if ArgoCD is already installed
+      ansible.builtin.command: >
+        kubectl get deployment argocd-server -n {{ argocd_namespace }}
+      environment:
+        KUBECONFIG: "{{ kubeconfig }}"
+      register: argocd_exists
+      changed_when: false
+      failed_when: false
+
+    - name: Get current ArgoCD version
+      ansible.builtin.command: >
+        kubectl get deployment argocd-server -n {{ argocd_namespace }}
+        -o jsonpath='{.spec.template.spec.containers[0].image}'
+      environment:
+        KUBECONFIG: "{{ kubeconfig }}"
+      register: current_version
+      changed_when: false
+      when: argocd_exists.rc == 0
+
+    - name: Display ArgoCD status
+      ansible.builtin.debug:
+        msg: >-
+          {{ 'ArgoCD already installed: ' + current_version.stdout
+             if argocd_exists.rc == 0
+             else 'ArgoCD not found — installing ' + argocd_version }}
+
+    - name: Install ArgoCD manifests
+      ansible.builtin.command: >
+        kubectl apply -n {{ argocd_namespace }} -f {{ argocd_install_url }}
+      environment:
+        KUBECONFIG: "{{ kubeconfig }}"
+      register: install_result
+      # Only show changed if resources were created (not just configured)
+      changed_when: "'created' in install_result.stdout"
+
+    # =========================================================================
+    # 4. Configure ArgoCD for Gateway TLS Termination
+    # =========================================================================
+    - name: Patch argocd-cmd-params-cm for insecure mode (gateway terminates TLS)
+      ansible.builtin.command: >
+        kubectl patch configmap argocd-cmd-params-cm -n {{ argocd_namespace }}
+        --type merge -p '{"data":{"server.insecure":"true"}}'
+      environment:
+        KUBECONFIG: "{{ kubeconfig }}"
+      register: patch_result
+      changed_when: "'patched' in patch_result.stdout and '(no change)' not in patch_result.stdout"
+
+    # =========================================================================
+    # 5. Wait for ArgoCD Server
+    # =========================================================================
+    - name: Wait for ArgoCD server deployment to be ready
+      ansible.builtin.command: >
+        kubectl rollout status deployment argocd-server
+        -n {{ argocd_namespace }} --timeout=120s
+      environment:
+        KUBECONFIG: "{{ kubeconfig }}"
+      changed_when: false
+      register: rollout_result
+
+    - name: Restart ArgoCD server if config changed
+      ansible.builtin.command: >
+        kubectl rollout restart deployment argocd-server -n {{ argocd_namespace }}
+      environment:
+        KUBECONFIG: "{{ kubeconfig }}"
+      when: patch_result.changed | default(false)
+      register: restart_result
+      changed_when: restart_result.rc == 0
+
+    - name: Wait for ArgoCD server restart
+      ansible.builtin.command: >
+        kubectl rollout status deployment argocd-server
+        -n {{ argocd_namespace }} --timeout=120s
+      environment:
+        KUBECONFIG: "{{ kubeconfig }}"
+      changed_when: false
+      when: restart_result.changed | default(false)
+
+    # =========================================================================
+    # 6. Apply Root Application (App-of-Apps)
+    # =========================================================================
+    - name: Check if root Application exists
+      ansible.builtin.command: >
+        kubectl get application root -n {{ argocd_namespace }}
+      environment:
+        KUBECONFIG: "{{ kubeconfig }}"
+      register: root_app_check
+      changed_when: false
+      failed_when: false
+
+    - name: Apply root Application manifest
+      ansible.builtin.command: >
+        kubectl apply -f {{ root_app_manifest }}
+      environment:
+        KUBECONFIG: "{{ kubeconfig }}"
+      register: root_app_result
+      changed_when: "'created' in root_app_result.stdout"
+
+    # =========================================================================
+    # 7. Get Initial Admin Password
+    # =========================================================================
+    - name: Get ArgoCD initial admin password
+      ansible.builtin.shell: >
+        kubectl get secret argocd-initial-admin-secret -n {{ argocd_namespace }}
+        -o jsonpath='{.data.password}' | base64 -d
+      environment:
+        KUBECONFIG: "{{ kubeconfig }}"
+      register: admin_password
+      changed_when: false
+      failed_when: false
+      no_log: true
+
+    # =========================================================================
+    # Summary
+    # =========================================================================
+    - name: Display summary
+      ansible.builtin.debug:
+        msg: |
+          ========================================
+          ArgoCD {{ argocd_version }} bootstrapped!
+
+          ✅ Namespace: {{ argocd_namespace }}
+          ✅ ArgoCD installed from official manifests
+          ✅ server.insecure=true (TLS terminated at Cilium Gateway)
+          ✅ Root app-of-apps applied
+
+          Access:
+            URL: https://argocd.local.negativezone.cc
+            User: admin
+            Password: {{ 'Retrieved (use --verbose to see)' if admin_password.rc == 0 else 'Secret not found (already deleted?)' }}
+
+          The root Application watches:
+            kubernetes/platform/argocd/apps/ (main branch)
+
+          All other apps are managed by ArgoCD from here.
+
+          To change the admin password:
+            argocd login argocd.local.negativezone.cc
+            argocd account update-password
+          ========================================

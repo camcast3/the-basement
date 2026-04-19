@@ -42,7 +42,26 @@ ansible-playbook -i inventory/inventory-ini playbooks/setup-proxmox-host.yaml
 - `smtp_relay_email`: Gmail address for sending alerts
 - `smtp_relay_password`: Gmail app password
 
-### 3. setup-omni-cluster.yaml
+### 3. bootstrap-argocd.yaml
+Bootstraps ArgoCD on the Kubernetes cluster and applies the root app-of-apps. This is the GitOps entry point — ArgoCD manages everything else, but needs an initial install.
+
+```bash
+ansible-playbook playbooks/bootstrap-argocd.yaml
+ansible-playbook playbooks/bootstrap-argocd.yaml -e argocd_version=v3.3.6
+ansible-playbook playbooks/bootstrap-argocd.yaml -e kubeconfig=~/.kube/my-cluster
+```
+
+**Key Variables**:
+- `argocd_version`: ArgoCD version to install (default: `v3.3.6`)
+- `kubeconfig`: Path to kubeconfig (default: `$KUBECONFIG` or `~/.kube/config`)
+
+**What it does**:
+- Installs ArgoCD from official manifests (pinned version)
+- Sets `server.insecure=true` (TLS terminated at Cilium Gateway)
+- Applies root Application (app-of-apps from `kubernetes/platform/argocd/apps/`)
+- Displays initial admin password
+
+### 4. setup-omni-cluster.yaml
 Prepares the dedicated Omni host for deployment — creates directories, generates the GPG encryption key and account UUID. Does **not** deploy the stack (Portainer handles that).
 
 ```bash

@@ -1,0 +1,81 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "extends": [
+    "config:recommended",
+    "docker:enableMajor",
+    ":semanticCommits"
+  ],
+  "labels": ["dependencies", "renovate"],
+  "timezone": "America/Los_Angeles",
+  "schedule": ["before 9am on monday"],
+  "prHourlyLimit": 5,
+  "prConcurrentLimit": 10,
+  "platformAutomerge": false,
+  "kubernetes": {
+    "fileMatch": ["kubernetes/.+\\.yaml$"]
+  },
+  "argocd": {
+    "fileMatch": ["kubernetes/.+\\.yaml$"]
+  },
+  "helm-values": {
+    "fileMatch": ["kubernetes/.+values\\.yaml$"]
+  },
+  "packageRules": [
+    {
+      "description": "Group observability stack updates",
+      "groupName": "observability stack",
+      "matchPackagePatterns": [
+        "^grafana/",
+        "^quay\\.io/prometheus/",
+        "grafana/alloy",
+        "grafana/loki"
+      ]
+    },
+    {
+      "description": "Group infrastructure chart updates",
+      "groupName": "infrastructure charts",
+      "matchPackagePatterns": [
+        "cert-manager",
+        "external-dns",
+        "cilium",
+        "rook-ceph"
+      ]
+    },
+    {
+      "description": "Group Argo ecosystem updates",
+      "groupName": "argo ecosystem",
+      "matchPackagePatterns": [
+        "argo-rollouts",
+        "argocd"
+      ]
+    },
+    {
+      "description": "Pin major versions for core infra — require manual review",
+      "matchPackagePatterns": ["cilium", "rook-ceph", "cert-manager"],
+      "matchUpdateTypes": ["major"],
+      "enabled": false
+    },
+    {
+      "description": "Auto-merge patch updates for non-critical apps",
+      "matchUpdateTypes": ["patch", "pin", "digest"],
+      "matchPackagePatterns": [
+        "descheduler",
+        "spegel",
+        "external-dns"
+      ],
+      "automerge": true
+    }
+  ],
+  "customManagers": [
+    {
+      "customType": "regex",
+      "description": "Track ArgoCD install manifest version in Ansible playbook",
+      "fileMatch": ["ansible/playbooks/bootstrap-argocd\\.yaml$"],
+      "matchStrings": [
+        "argocd_version:\\s*\"(?<currentValue>v[\\d\\.]+)\""
+      ],
+      "depNameTemplate": "argoproj/argo-cd",
+      "datasourceTemplate": "github-releases"
+    }
+  ]
+}
