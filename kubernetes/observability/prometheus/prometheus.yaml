@@ -175,6 +175,72 @@ data:
           - targets: ["192.168.86.2:9283"]
             labels:
               cluster: proxmox-ceph
+
+      # Cilium agent metrics (DaemonSet on every node)
+      - job_name: cilium-agent
+        kubernetes_sd_configs:
+          - role: pod
+            namespaces:
+              names: [kube-system]
+        relabel_configs:
+          - source_labels: [__meta_kubernetes_pod_label_k8s_app]
+            regex: cilium
+            action: keep
+          - source_labels: [__meta_kubernetes_pod_container_port_number]
+            regex: "9962"
+            action: keep
+          - source_labels: [__meta_kubernetes_pod_node_name]
+            target_label: node
+
+      # Cilium operator metrics
+      - job_name: cilium-operator
+        kubernetes_sd_configs:
+          - role: pod
+            namespaces:
+              names: [kube-system]
+        relabel_configs:
+          - source_labels: [__meta_kubernetes_pod_label_name]
+            regex: cilium-operator
+            action: keep
+          - source_labels: [__meta_kubernetes_pod_container_port_number]
+            regex: "9963"
+            action: keep
+
+      # Hubble metrics (DaemonSet, exposed by Cilium agent)
+      - job_name: hubble
+        kubernetes_sd_configs:
+          - role: pod
+            namespaces:
+              names: [kube-system]
+        relabel_configs:
+          - source_labels: [__meta_kubernetes_pod_label_k8s_app]
+            regex: cilium
+            action: keep
+          - source_labels: [__meta_kubernetes_pod_container_port_number]
+            regex: "9965"
+            action: keep
+          - source_labels: [__meta_kubernetes_pod_node_name]
+            target_label: node
+
+      # Hubble Relay metrics
+      - job_name: hubble-relay
+        static_configs:
+          - targets: ["hubble-relay.kube-system.svc:9966"]
+
+      # CoreDNS metrics
+      - job_name: coredns
+        static_configs:
+          - targets: ["kube-dns.kube-system.svc:9153"]
+
+      # ArgoCD application controller metrics
+      - job_name: argocd
+        static_configs:
+          - targets:
+              - argocd-metrics.argocd.svc:8082
+              - argocd-server-metrics.argocd.svc:8083
+              - argocd-applicationset-controller.argocd.svc:8080
+              - argocd-notifications-controller-metrics.argocd.svc:9001
+              - argocd-repo-server.argocd.svc:8084
 ---
 apiVersion: apps/v1
 kind: StatefulSet

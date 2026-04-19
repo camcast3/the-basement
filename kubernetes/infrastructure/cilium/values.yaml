@@ -21,11 +21,50 @@ cgroup:
     enabled: false
   hostRoot: /sys/fs/cgroup
 
+# Prometheus metrics for Cilium agent
+prometheus:
+  enabled: true
+  port: 9962
+  serviceMonitor:
+    enabled: false
+
+# Cilium Envoy proxy metrics
+envoy:
+  prometheus:
+    enabled: true
+    port: 9964
+    servicePort: 9964
+
+# Cilium Operator metrics
+operator:
+  prometheus:
+    enabled: true
+    port: 9963
+    serviceMonitor:
+      enabled: false
+
 # Hubble observability
 hubble:
   enabled: true
+  metrics:
+    enabled:
+      - dns
+      - drop
+      - tcp
+      - flow
+      - icmp
+      - httpV2:exemplars=true;labelsContext=source_ip,source_namespace,source_workload,destination_ip,destination_namespace,destination_workload,traffic_direction
+      - policy:ignoreDirection=egress;sourceContext=app;destinationContext=app
+    enableOpenMetrics: true
+    serviceMonitor:
+      enabled: false
   relay:
     enabled: true
+    prometheus:
+      enabled: true
+      port: 9966
+      serviceMonitor:
+        enabled: false
   ui:
     enabled: true
 
