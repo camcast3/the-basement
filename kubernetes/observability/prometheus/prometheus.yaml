@@ -315,10 +315,15 @@ spec:
         - name: config
           configMap:
             name: prometheus-config
-        # TODO: Switch to PVC once Rook-Ceph StorageClass is available
-        - name: data
-          emptyDir:
-            sizeLimit: 20Gi
+  volumeClaimTemplates:
+    - metadata:
+        name: data
+      spec:
+        storageClassName: ceph-rbd
+        accessModes: ["ReadWriteOnce"]
+        resources:
+          requests:
+            storage: 50Gi
 ---
 apiVersion: v1
 kind: Service

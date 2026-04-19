@@ -196,9 +196,11 @@ spec:
                   name: grafana-dashboards-homelab
               - configMap:
                   name: grafana-dashboards-logs
-        # TODO: Switch to PVC once Rook-Ceph StorageClass is available
+              - configMap:
+                  name: grafana-dashboards-compute
         - name: data
-          emptyDir: {}
+          persistentVolumeClaim:
+            claimName: grafana-data
 ---
 apiVersion: v1
 kind: Service
@@ -235,3 +237,17 @@ spec:
       backendRefs:
         - name: grafana
           port: 80
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: grafana-data
+  namespace: monitoring
+  labels:
+    app.kubernetes.io/name: grafana
+spec:
+  storageClassName: ceph-rbd
+  accessModes: ["ReadWriteOnce"]
+  resources:
+    requests:
+      storage: 2Gi
