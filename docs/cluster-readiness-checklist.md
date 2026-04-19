@@ -9,56 +9,39 @@
 
 Complete the Ceph cluster setup on the 3 Proxmox nodes. Full instructions in [Ceph TB4 Setup Guide](ceph-tb4-setup-guide.md).
 
-- [ ] Install Ceph packages on all 3 nodes — [Section 1](ceph-tb4-setup-guide.md#1-install-ceph-packages)
-- [ ] Initialize Ceph on pve01 (`pveceph init`) — [Section 2](ceph-tb4-setup-guide.md#2-initialize-ceph-on-the-first-node)
-- [ ] Create monitors on all 3 nodes — [Section 3](ceph-tb4-setup-guide.md#3-create-monitors)
-- [ ] Create managers on all 3 nodes — [Section 4](ceph-tb4-setup-guide.md#4-create-managers)
-- [ ] Create OSDs (one per node on Samsung 990 PRO) — [Section 5](ceph-tb4-setup-guide.md#5-create-osds)
-- [ ] Create storage pools (`ceph-block`, `ceph-block-fast`, CephFS, RGW) — [Section 6](ceph-tb4-setup-guide.md#6-create-storage-pools)
-- [ ] Verify `ceph -s` shows `HEALTH_OK` — [Section 7](ceph-tb4-setup-guide.md#7-verify-ceph-health)
-- [ ] Migrate Ceph cluster_network back to TB4 (`10.100.0.0/24`) — see below
-- [ ] Verify OSD replication is on TB4 network (`10.100.0.x`) — [Section 7](ceph-tb4-setup-guide.md#7-verify-ceph-health)
+- [x] Install Ceph packages on all 3 nodes — [Section 1](ceph-tb4-setup-guide.md#1-install-ceph-packages)
+- [x] Initialize Ceph on pve01 (`pveceph init`) — [Section 2](ceph-tb4-setup-guide.md#2-initialize-ceph-on-the-first-node)
+- [x] Create monitors on all 3 nodes — [Section 3](ceph-tb4-setup-guide.md#3-create-monitors)
+- [x] Create managers on all 3 nodes — [Section 4](ceph-tb4-setup-guide.md#4-create-managers)
+- [x] Create OSDs (one per node on Samsung 990 PRO) — [Section 5](ceph-tb4-setup-guide.md#5-create-osds)
+- [x] Create storage pools (`ceph-block`, `ceph-block-fast`, CephFS, RGW) — [Section 6](ceph-tb4-setup-guide.md#6-create-storage-pools)
+- [x] Verify `ceph -s` shows `HEALTH_OK` — [Section 7](ceph-tb4-setup-guide.md#7-verify-ceph-health)
+- [x] Migrate Ceph cluster_network to TB4 (`10.100.0.0/24`) — see below
+- [x] Verify OSD replication is on TB4 network (`10.100.0.x`) — [Section 7](ceph-tb4-setup-guide.md#7-verify-ceph-health)
 - [ ] Add Ceph storage to Proxmox (RBD + CephFS) — [Section 8](ceph-tb4-setup-guide.md#8-add-ceph-storage-to-proxmox)
 - [ ] Apply performance tuning (NVMe, scrub scheduling) — [Section 10](ceph-tb4-setup-guide.md#10-performance-tuning)
 - [ ] Enable Prometheus metrics (`ceph mgr module enable prometheus`) — [Section 10](ceph-tb4-setup-guide.md#10-performance-tuning)
 
-### TB4 Cluster Network Migration
+### TB4 Cluster Network Migration ✅ COMPLETED
 
-> **Current state:** `cluster_network` is set to `192.168.86.0/24` (management network) because
-> the TB4 /30 point-to-point subnets lack cross-subnet routes. Each node only has routes to its
-> two directly connected /30s, so OSDs on the third subnet are unreachable.
->
-> **To switch back to TB4 for replication traffic (40 Gbps):**
+> **Status:** Ceph replication traffic is now running over the 40 Gbps Thunderbolt 4 mesh.
 
-- [ ] Add inter-/30 static routes on each node (persistent across reboots):
-  ```bash
-  # pve01 — add route to pve02↔pve03 subnet
-  ip route add 10.100.0.4/30 via 10.100.0.2 dev en06
+**What was done:**
 
-  # pve02 — add route to pve03↔pve01 subnet
-  ip route add 10.100.0.8/30 via 10.100.0.1 dev en05
-
-  # pve03 — add route to pve01↔pve02 subnet
-  ip route add 10.100.0.0/30 via 10.100.0.10 dev en06
-  ```
-- [ ] Enable IP forwarding on all nodes:
+- [x] Added inter-/30 static routes on each node (persistent via `post-up` in `/etc/network/interfaces`):
   ```bash
-  sysctl -w net.ipv4.ip_forward=1
-  echo 'net.ipv4.ip_forward=1' >> /etc/sysctl.d/99-ceph-forward.conf
+  # pve01 en06: post-up ip route add 10.100.0.4/30 via 10.100.0.2 dev en06
+  # pve02 en05: post-up ip route add 10.100.0.8/30 via 10.100.0.1 dev en05
+  # pve03 en06: post-up ip route add 10.100.0.0/30 via 10.100.0.10 dev en06
   ```
-- [ ] Verify full mesh connectivity:
-  ```bash
-  # From pve01: ping all TB4 IPs
-  ping -c 1 10.100.0.2 && ping -c 1 10.100.0.5 && ping -c 1 10.100.0.6 && ping -c 1 10.100.0.9
-  ```
-- [ ] Update `/etc/pve/ceph.conf`: change `cluster_network = 192.168.86.0/24` → `10.100.0.0/24`
-- [ ] Restart OSDs one at a time (wait for `HEALTH_OK` between each):
-  ```bash
-  systemctl restart ceph-osd@0.service  # pve01, wait for HEALTH_OK
-  systemctl restart ceph-osd@1.service  # pve02, wait for HEALTH_OK
-  systemctl restart ceph-osd@2.service  # pve03, wait for HEALTH_OK
-  ```
-- [ ] Verify cluster_addrs are on TB4: `ceph osd find 0 | grep cluster_addrs`
+- [x] Enabled IP forwarding on all nodes (persistent via `/etc/sysctl.d/99-ceph-forward.conf`)
+- [x] Verified full TB4 mesh connectivity (all IPs reachable from all nodes)
+- [x] Updated `/etc/pve/ceph.conf`: `cluster_network = 10.100.0.0/24`
+- [x] Rolling OSD restarts (one at a time, HEALTH_OK between each)
+- [x] Verified OSD back_addrs on TB4:
+  - osd.0 → `10.100.0.1` (pve01)
+  - osd.1 → `10.100.0.2` (pve02)
+  - osd.2 → `10.100.0.6` (pve03)
 
 ---
 
