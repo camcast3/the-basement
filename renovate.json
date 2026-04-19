@@ -86,6 +86,16 @@
       ],
       "depNameTemplate": "thecfu/scraparr",
       "datasourceTemplate": "github-releases"
+    },
+    {
+      "customType": "regex",
+      "description": "Track Traefik dashboard version pinned in Grafana init container",
+      "fileMatch": ["kubernetes/observability/grafana/grafana\\.yaml$"],
+      "matchStrings": [
+        "traefik/traefik/(?<currentValue>v[\\d\\.]+)/contrib/"
+      ],
+      "depNameTemplate": "traefik/traefik",
+      "datasourceTemplate": "github-releases"
     }
   ]
 }

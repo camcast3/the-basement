@@ -129,6 +129,8 @@ data:
   scraparr: "https://raw.githubusercontent.com/thecfu/scraparr/v3.0.3/dashboards/dashboard1.json"
   # frebib/nzbget-exporter — pinned to commit (no releases/tags)
   nzbget: "https://raw.githubusercontent.com/frebib/nzbget-exporter/3f31fa1e8c3728a0952de8b4541f9d20b5342ce6/grafana/nzbget-1728694158729.json"
+  # traefik/traefik v3.6.13 — standalone (Docker) dashboard
+  traefik: "https://raw.githubusercontent.com/traefik/traefik/v3.6.13/contrib/grafana/traefik.json"
 ---
 # Datasource overrides for external dashboards. Each key must match a
 # dashboard name from the registry above. Values are find=replace pairs
@@ -176,6 +178,12 @@ data:
   # scraparr: |
   #   .title = "Scraparr - Homelab" |
   #   .tags += ["homelab"]
+  traefik: |
+    .title = "Traefik — Reverse Proxy" |
+    .tags = ["traefik", "homelab", "reverse-proxy"] |
+    .uid = "traefik-homelab" |
+    .refresh = "30s" |
+    .time.from = "now-6h"
 ---
 apiVersion: apps/v1
 kind: Deployment
