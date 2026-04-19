@@ -113,9 +113,9 @@ data:
       prometheusremotewrite:
         endpoint: http://prometheus.monitoring.svc:9090/api/v1/write
 
-      # Send logs to Loki
-      loki:
-        endpoint: http://loki-gateway.monitoring.svc:80/loki/api/v1/push
+      # Send logs to Loki via OTLP HTTP
+      otlphttp/loki:
+        endpoint: http://loki-gateway.monitoring.svc:80/otlp
 
       # Debug exporter for troubleshooting (logs to stdout)
       debug:
@@ -129,7 +129,12 @@ data:
       extensions: [health_check]
       telemetry:
         metrics:
-          address: 0.0.0.0:8888
+          readers:
+            - pull:
+                exporter:
+                  prometheus:
+                    host: 0.0.0.0
+                    port: 8888
       pipelines:
         traces:
           receivers: [otlp]
@@ -142,7 +147,7 @@ data:
         logs:
           receivers: [otlp]
           processors: [memory_limiter, k8sattributes, resource, batch]
-          exporters: [loki]
+          exporters: [otlphttp/loki]
 ---
 apiVersion: apps/v1
 kind: Deployment
