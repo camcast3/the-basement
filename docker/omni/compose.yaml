@@ -25,6 +25,9 @@ services:
   omni:
     image: ghcr.io/siderolabs/omni:${OMNI_VERSION:-latest}
     container_name: omni
+    dns:
+      - 192.168.25.19
+      - 192.168.86.1
     restart: unless-stopped
     ports:
       - "443:${OMNI_HTTP_PORT:-8080}"                               # Web UI (HTTPS, direct)
