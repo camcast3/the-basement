@@ -1,7 +1,29 @@
 # Cilium Gateway API — shared Gateway resource
 # All HTTPRoutes across namespaces reference this Gateway.
-# MetalLB assigns a LoadBalancer IP from the homelab-pool.
+# Cilium LB IPAM assigns a LoadBalancer IP from the homelab pool.
 # cert-manager auto-provisions TLS via the annotation + Gateway API integration.
+---
+# Cilium LB IPAM pool — replaces MetalLB for LoadBalancer IP assignment
+apiVersion: cilium.io/v2alpha1
+kind: CiliumLoadBalancerIPPool
+metadata:
+  name: homelab-pool
+spec:
+  blocks:
+    - start: 192.168.86.20
+      stop: 192.168.86.49
+---
+# L2 announcement policy — Cilium responds to ARP for LB IPs
+apiVersion: cilium.io/v2alpha1
+kind: CiliumL2AnnouncementPolicy
+metadata:
+  name: homelab-l2
+spec:
+  loadBalancerIPs: true
+  interfaces:
+    - ^eth[0-9]+
+    - ^en[ospx][0-9]+
+---
 apiVersion: gateway.networking.k8s.io/v1
 kind: Gateway
 metadata:
