@@ -85,7 +85,7 @@ data:
         spike_limit_mib: 100
 
       # Enrich telemetry with Kubernetes metadata
-      k8sattributes:
+      k8s_attributes:
         auth_type: serviceAccount
         extract:
           metadata:
@@ -114,7 +114,7 @@ data:
         endpoint: http://prometheus.monitoring.svc:9090/api/v1/write
 
       # Send logs to Loki via OTLP HTTP
-      otlphttp/loki:
+      otlp_http/loki:
         endpoint: http://loki-gateway.monitoring.svc:80/otlp
 
       # Debug exporter for troubleshooting (logs to stdout)
@@ -138,16 +138,16 @@ data:
       pipelines:
         traces:
           receivers: [otlp]
-          processors: [memory_limiter, k8sattributes, resource, batch]
+          processors: [memory_limiter, k8s_attributes, resource, batch]
           exporters: [debug]
         metrics:
           receivers: [otlp, hostmetrics]
-          processors: [memory_limiter, k8sattributes, resource, batch]
+          processors: [memory_limiter, k8s_attributes, resource, batch]
           exporters: [prometheusremotewrite]
         logs:
           receivers: [otlp]
-          processors: [memory_limiter, k8sattributes, resource, batch]
-          exporters: [otlphttp/loki]
+          processors: [memory_limiter, k8s_attributes, resource, batch]
+          exporters: [otlp_http/loki]
 ---
 apiVersion: apps/v1
 kind: Deployment
