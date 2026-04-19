@@ -73,6 +73,13 @@ gatewayAPI:
   enabled: true
   externalTrafficPolicy: Local
 
+# Cilium-native LoadBalancer IPAM + L2 announcements (replaces MetalLB)
+l2announcements:
+  enabled: true
+
+externalIPs:
+  enabled: true
+
 # Talos doesn't allow loading kernel modules from pods
 securityContext:
   capabilities:
