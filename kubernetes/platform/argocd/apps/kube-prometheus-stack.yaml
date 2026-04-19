@@ -12,6 +12,7 @@ spec:
       chart: kube-prometheus-stack
       targetRevision: 83.4.1
       helm:
+        skipCrds: true
         valueFiles:
           - $values/kubernetes/observability/kube-prometheus-stack/values.yaml
     - repoURL: https://github.com/camcast3/the-basement.git
