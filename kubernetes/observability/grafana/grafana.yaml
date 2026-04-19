@@ -127,6 +127,8 @@ metadata:
 data:
   # thecfu/scraparr v3.0.3
   scraparr: "https://raw.githubusercontent.com/thecfu/scraparr/v3.0.3/dashboards/dashboard1.json"
+  # frebib/nzbget-exporter — pinned to commit (no releases/tags)
+  nzbget: "https://raw.githubusercontent.com/frebib/nzbget-exporter/3f31fa1e8c3728a0952de8b4541f9d20b5342ce6/grafana/nzbget-1728694158729.json"
 ---
 # Datasource overrides for external dashboards. Each key must match a
 # dashboard name from the registry above. Values are find=replace pairs
@@ -147,10 +149,9 @@ metadata:
     app.kubernetes.io/name: grafana
 data:
   # Scraparr uses ${datasource} template variable — no overrides needed.
-  # Example for a dashboard that hardcodes a Mimir UID:
-  # some-dashboard: |
-  #   ${DS_MIMIR}=prometheus
-  #   my-mimir-uid=prometheus
+  # NZBGet dashboard hardcodes ${DS_PROMETHEUS} from __inputs
+  nzbget: |
+    ${DS_PROMETHEUS}=prometheus
 ---
 # jq patches for external dashboards. Each key must match a dashboard name
 # from the registry. Values are jq filter expressions applied to the JSON
