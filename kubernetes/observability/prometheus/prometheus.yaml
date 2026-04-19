@@ -1,0 +1,262 @@
+# Prometheus v3.11.2 — upstream deployment
+# Image: quay.io/prometheus/prometheus:v3.11.2
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: prometheus
+  namespace: monitoring
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: prometheus
+rules:
+  - apiGroups: [""]
+    resources: [nodes, nodes/metrics, services, endpoints, pods]
+    verbs: [get, list, watch]
+  - apiGroups: [""]
+    resources: [configmaps]
+    verbs: [get]
+  - apiGroups: [discovery.k8s.io]
+    resources: [endpointslices]
+    verbs: [get, list, watch]
+  - apiGroups: [networking.k8s.io]
+    resources: [ingresses]
+    verbs: [get, list, watch]
+  - nonResourceURLs: [/metrics]
+    verbs: [get]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: prometheus
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: prometheus
+subjects:
+  - kind: ServiceAccount
+    name: prometheus
+    namespace: monitoring
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: prometheus-config
+  namespace: monitoring
+data:
+  prometheus.yml: |
+    global:
+      scrape_interval: 30s
+      evaluation_interval: 30s
+
+    remote_write:
+      - url: http://localhost:9090/api/v1/write
+
+    scrape_configs:
+      # Prometheus self-monitoring
+      - job_name: prometheus
+        static_configs:
+          - targets: ["localhost:9090"]
+
+      # Alertmanager
+      - job_name: alertmanager
+        static_configs:
+          - targets: ["alertmanager.monitoring.svc:9093"]
+
+      # Node Exporter (discovered via endpoints)
+      - job_name: node-exporter
+        kubernetes_sd_configs:
+          - role: endpoints
+            namespaces:
+              names: [monitoring]
+        relabel_configs:
+          - source_labels: [__meta_kubernetes_service_name]
+            regex: node-exporter
+            action: keep
+          - source_labels: [__meta_kubernetes_endpoint_node_name]
+            target_label: node
+
+      # kube-state-metrics
+      - job_name: kube-state-metrics
+        static_configs:
+          - targets: ["kube-state-metrics.monitoring.svc:8080"]
+
+      # Kubelet metrics
+      - job_name: kubelet
+        scheme: https
+        tls_config:
+          ca_file: /var/run/secrets/kubernetes.io/serviceaccount/ca.crt
+          insecure_skip_verify: true
+        authorization:
+          credentials_file: /var/run/secrets/kubernetes.io/serviceaccount/token
+        kubernetes_sd_configs:
+          - role: node
+        relabel_configs:
+          - target_label: __address__
+            replacement: kubernetes.default.svc:443
+          - source_labels: [__meta_kubernetes_node_name]
+            regex: (.+)
+            target_label: __metrics_path__
+            replacement: /api/v1/nodes/$1/proxy/metrics
+
+      # cAdvisor (via kubelet)
+      - job_name: cadvisor
+        scheme: https
+        tls_config:
+          ca_file: /var/run/secrets/kubernetes.io/serviceaccount/ca.crt
+          insecure_skip_verify: true
+        authorization:
+          credentials_file: /var/run/secrets/kubernetes.io/serviceaccount/token
+        kubernetes_sd_configs:
+          - role: node
+        relabel_configs:
+          - target_label: __address__
+            replacement: kubernetes.default.svc:443
+          - source_labels: [__meta_kubernetes_node_name]
+            regex: (.+)
+            target_label: __metrics_path__
+            replacement: /api/v1/nodes/$1/proxy/metrics/cadvisor
+        metric_relabel_configs:
+          - source_labels: [__name__]
+            regex: container_(cpu_.*|memory_.*|network_.*|fs_.*)
+            action: keep
+
+      # Pods with prometheus.io annotations
+      - job_name: kubernetes-pods
+        kubernetes_sd_configs:
+          - role: pod
+        relabel_configs:
+          - source_labels: [__meta_kubernetes_pod_annotation_prometheus_io_scrape]
+            regex: "true"
+            action: keep
+          - source_labels: [__meta_kubernetes_pod_annotation_prometheus_io_scheme]
+            regex: (https?)
+            target_label: __scheme__
+          - source_labels: [__meta_kubernetes_pod_annotation_prometheus_io_path]
+            regex: (.+)
+            target_label: __metrics_path__
+          - source_labels: [__address__, __meta_kubernetes_pod_annotation_prometheus_io_port]
+            regex: ([^:]+)(?::\d+)?;(\d+)
+            replacement: $1:$2
+            target_label: __address__
+          - source_labels: [__meta_kubernetes_namespace]
+            target_label: namespace
+          - source_labels: [__meta_kubernetes_pod_name]
+            target_label: pod
+
+      # Services with prometheus.io annotations
+      - job_name: kubernetes-services
+        kubernetes_sd_configs:
+          - role: service
+        relabel_configs:
+          - source_labels: [__meta_kubernetes_service_annotation_prometheus_io_scrape]
+            regex: "true"
+            action: keep
+          - source_labels: [__meta_kubernetes_service_annotation_prometheus_io_scheme]
+            regex: (https?)
+            target_label: __scheme__
+          - source_labels: [__meta_kubernetes_service_annotation_prometheus_io_path]
+            regex: (.+)
+            target_label: __metrics_path__
+          - source_labels: [__address__, __meta_kubernetes_service_annotation_prometheus_io_port]
+            regex: ([^:]+)(?::\d+)?;(\d+)
+            replacement: $1:$2
+            target_label: __address__
+          - source_labels: [__meta_kubernetes_namespace]
+            target_label: namespace
+          - source_labels: [__meta_kubernetes_service_name]
+            target_label: service
+
+      # Ceph exporter on Proxmox (external)
+      - job_name: ceph
+        static_configs:
+          - targets: ["192.168.86.2:9283"]
+            labels:
+              cluster: proxmox-ceph
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: prometheus
+  namespace: monitoring
+  labels:
+    app.kubernetes.io/name: prometheus
+spec:
+  serviceName: prometheus
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: prometheus
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: prometheus
+      annotations:
+        prometheus.io/scrape: "false"
+    spec:
+      serviceAccountName: prometheus
+      securityContext:
+        fsGroup: 65534
+        runAsNonRoot: true
+        runAsUser: 65534
+      containers:
+        - name: prometheus
+          image: quay.io/prometheus/prometheus:v3.11.2
+          args:
+            - --config.file=/etc/prometheus/prometheus.yml
+            - --storage.tsdb.path=/prometheus
+            - --storage.tsdb.retention.time=15d
+            - --web.enable-lifecycle
+            - --web.enable-remote-write-receiver
+            - --web.console.libraries=/usr/share/prometheus/console_libraries
+            - --web.console.templates=/usr/share/prometheus/consoles
+          ports:
+            - name: http
+              containerPort: 9090
+          resources:
+            requests:
+              cpu: 200m
+              memory: 512Mi
+            limits:
+              memory: 2Gi
+          volumeMounts:
+            - name: config
+              mountPath: /etc/prometheus
+            - name: data
+              mountPath: /prometheus
+          readinessProbe:
+            httpGet:
+              path: /-/ready
+              port: http
+            initialDelaySeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /-/healthy
+              port: http
+            initialDelaySeconds: 30
+      volumes:
+        - name: config
+          configMap:
+            name: prometheus-config
+        # TODO: Switch to PVC once Rook-Ceph StorageClass is available
+        - name: data
+          emptyDir:
+            sizeLimit: 20Gi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: prometheus
+  namespace: monitoring
+  labels:
+    app.kubernetes.io/name: prometheus
+spec:
+  type: ClusterIP
+  ports:
+    - name: http
+      port: 9090
+      targetPort: http
+  selector:
+    app.kubernetes.io/name: prometheus

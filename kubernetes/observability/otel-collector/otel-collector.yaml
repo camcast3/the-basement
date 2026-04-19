@@ -1,0 +1,233 @@
+# OpenTelemetry Collector Contrib v0.150.0
+# Image: otel/opentelemetry-collector-contrib:0.150.0
+#
+# Receives OTLP traces/metrics/logs, exports to Prometheus and Loki.
+# Apps send telemetry to otel-collector.monitoring.svc:4317 (gRPC)
+# or otel-collector.monitoring.svc:4318 (HTTP).
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: otel-collector
+  namespace: monitoring
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: otel-collector
+rules:
+  - apiGroups: [""]
+    resources: [pods, nodes, endpoints, namespaces, services, nodes/proxy]
+    verbs: [get, list, watch]
+  - apiGroups: [apps]
+    resources: [replicasets, deployments, daemonsets, statefulsets]
+    verbs: [get, list, watch]
+  - apiGroups: [discovery.k8s.io]
+    resources: [endpointslices]
+    verbs: [get, list, watch]
+  - nonResourceURLs: [/metrics]
+    verbs: [get]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: otel-collector
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: otel-collector
+subjects:
+  - kind: ServiceAccount
+    name: otel-collector
+    namespace: monitoring
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: otel-collector-config
+  namespace: monitoring
+data:
+  config.yaml: |
+    receivers:
+      otlp:
+        protocols:
+          grpc:
+            endpoint: 0.0.0.0:4317
+          http:
+            endpoint: 0.0.0.0:4318
+
+      # Collect host metrics from the collector node
+      hostmetrics:
+        collection_interval: 30s
+        scrapers:
+          cpu: {}
+          memory: {}
+          disk: {}
+          network: {}
+
+      # Discover and scrape Kubernetes pod metrics
+      prometheus:
+        config:
+          scrape_configs:
+            - job_name: otel-collector
+              scrape_interval: 30s
+              static_configs:
+                - targets: ["localhost:8888"]
+
+    processors:
+      batch:
+        timeout: 10s
+        send_batch_size: 1024
+
+      memory_limiter:
+        check_interval: 5s
+        limit_mib: 400
+        spike_limit_mib: 100
+
+      # Enrich telemetry with Kubernetes metadata
+      k8sattributes:
+        auth_type: serviceAccount
+        extract:
+          metadata:
+            - k8s.namespace.name
+            - k8s.pod.name
+            - k8s.pod.uid
+            - k8s.deployment.name
+            - k8s.node.name
+            - k8s.container.name
+        pod_association:
+          - sources:
+              - from: resource_attribute
+                name: k8s.pod.ip
+          - sources:
+              - from: connection
+
+      resource:
+        attributes:
+          - key: cluster
+            value: k8s-homelab
+            action: upsert
+
+    exporters:
+      # Send metrics to Prometheus via remote write
+      prometheusremotewrite:
+        endpoint: http://prometheus.monitoring.svc:9090/api/v1/write
+
+      # Send logs to Loki
+      loki:
+        endpoint: http://loki-gateway.monitoring.svc:80/loki/api/v1/push
+
+      # Debug exporter for troubleshooting (logs to stdout)
+      debug:
+        verbosity: basic
+
+    extensions:
+      health_check:
+        endpoint: 0.0.0.0:13133
+
+    service:
+      extensions: [health_check]
+      telemetry:
+        metrics:
+          address: 0.0.0.0:8888
+      pipelines:
+        traces:
+          receivers: [otlp]
+          processors: [memory_limiter, k8sattributes, resource, batch]
+          exporters: [debug]
+        metrics:
+          receivers: [otlp, hostmetrics]
+          processors: [memory_limiter, k8sattributes, resource, batch]
+          exporters: [prometheusremotewrite]
+        logs:
+          receivers: [otlp]
+          processors: [memory_limiter, k8sattributes, resource, batch]
+          exporters: [loki]
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: otel-collector
+  namespace: monitoring
+  labels:
+    app.kubernetes.io/name: otel-collector
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: otel-collector
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: otel-collector
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "8888"
+    spec:
+      serviceAccountName: otel-collector
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65534
+      containers:
+        - name: otel-collector
+          image: otel/opentelemetry-collector-contrib:0.150.0
+          args:
+            - --config=/etc/otel/config.yaml
+          ports:
+            - name: otlp-grpc
+              containerPort: 4317
+              protocol: TCP
+            - name: otlp-http
+              containerPort: 4318
+              protocol: TCP
+            - name: metrics
+              containerPort: 8888
+              protocol: TCP
+            - name: health
+              containerPort: 13133
+              protocol: TCP
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              memory: 512Mi
+          volumeMounts:
+            - name: config
+              mountPath: /etc/otel
+          readinessProbe:
+            httpGet:
+              path: /
+              port: health
+            initialDelaySeconds: 5
+          livenessProbe:
+            httpGet:
+              path: /
+              port: health
+            initialDelaySeconds: 10
+      volumes:
+        - name: config
+          configMap:
+            name: otel-collector-config
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: otel-collector
+  namespace: monitoring
+  labels:
+    app.kubernetes.io/name: otel-collector
+spec:
+  type: ClusterIP
+  ports:
+    - name: otlp-grpc
+      port: 4317
+      targetPort: otlp-grpc
+    - name: otlp-http
+      port: 4318
+      targetPort: otlp-http
+    - name: metrics
+      port: 8888
+      targetPort: metrics
+  selector:
+    app.kubernetes.io/name: otel-collector

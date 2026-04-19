@@ -1,0 +1,263 @@
+# Grafana v13.1.0 — upstream deployment
+# Image: grafana/grafana:13.1.0
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: grafana-datasources
+  namespace: monitoring
+  labels:
+    app.kubernetes.io/name: grafana
+data:
+  datasources.yaml: |
+    apiVersion: 1
+    datasources:
+      - name: Prometheus
+        type: prometheus
+        uid: prometheus
+        url: http://prometheus.monitoring.svc:9090
+        access: proxy
+        isDefault: true
+        jsonData:
+          timeInterval: 30s
+      - name: Loki
+        type: loki
+        uid: loki
+        url: http://loki-gateway.monitoring.svc:80
+        access: proxy
+        isDefault: false
+        jsonData:
+          maxLines: 1000
+      - name: Alertmanager
+        type: alertmanager
+        uid: alertmanager
+        url: http://alertmanager.monitoring.svc:9093
+        access: proxy
+        jsonData:
+          implementation: prometheus
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: grafana-config
+  namespace: monitoring
+  labels:
+    app.kubernetes.io/name: grafana
+data:
+  grafana.ini: |
+    [server]
+    root_url = http://grafana.local.negativezone.cc
+
+    [analytics]
+    reporting_enabled = false
+    check_for_updates = false
+
+    [security]
+    admin_user = admin
+
+    [users]
+    allow_sign_up = false
+
+    [dashboards]
+    default_home_dashboard_path = /var/lib/grafana/dashboards/cluster-overview.json
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: grafana-dashboard-provider
+  namespace: monitoring
+  labels:
+    app.kubernetes.io/name: grafana
+data:
+  dashboards.yaml: |
+    apiVersion: 1
+    providers:
+      - name: default
+        orgId: 1
+        folder: ''
+        type: file
+        disableDeletion: false
+        editable: true
+        options:
+          path: /var/lib/grafana/dashboards
+          foldersFromFilesStructure: false
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: grafana-dashboards
+  namespace: monitoring
+  labels:
+    app.kubernetes.io/name: grafana
+data:
+  cluster-overview.json: |
+    {
+      "annotations": { "list": [] },
+      "editable": true,
+      "fiscalYearStartMonth": 0,
+      "graphTooltip": 1,
+      "links": [],
+      "panels": [
+        {
+          "title": "CPU Usage by Node",
+          "type": "timeseries",
+          "gridPos": { "h": 8, "w": 12, "x": 0, "y": 0 },
+          "targets": [{
+            "expr": "100 - (avg by(node) (rate(node_cpu_seconds_total{mode=\"idle\"}[5m])) * 100)",
+            "legendFormat": "{{node}}"
+          }],
+          "fieldConfig": { "defaults": { "unit": "percent" } }
+        },
+        {
+          "title": "Memory Usage by Node",
+          "type": "timeseries",
+          "gridPos": { "h": 8, "w": 12, "x": 12, "y": 0 },
+          "targets": [{
+            "expr": "100 * (1 - node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes)",
+            "legendFormat": "{{node}}"
+          }],
+          "fieldConfig": { "defaults": { "unit": "percent" } }
+        },
+        {
+          "title": "Pod Count by Namespace",
+          "type": "bargauge",
+          "gridPos": { "h": 8, "w": 12, "x": 0, "y": 8 },
+          "targets": [{
+            "expr": "count by(namespace) (kube_pod_info)",
+            "legendFormat": "{{namespace}}"
+          }]
+        },
+        {
+          "title": "Network I/O by Node",
+          "type": "timeseries",
+          "gridPos": { "h": 8, "w": 12, "x": 12, "y": 8 },
+          "targets": [
+            {
+              "expr": "rate(node_network_receive_bytes_total{device!~\"lo|cni.*|veth.*\"}[5m])",
+              "legendFormat": "{{node}} rx {{device}}"
+            },
+            {
+              "expr": "rate(node_network_transmit_bytes_total{device!~\"lo|cni.*|veth.*\"}[5m])",
+              "legendFormat": "{{node}} tx {{device}}"
+            }
+          ],
+          "fieldConfig": { "defaults": { "unit": "Bps" } }
+        }
+      ],
+      "schemaVersion": 39,
+      "templating": { "list": [] },
+      "time": { "from": "now-1h", "to": "now" },
+      "title": "Cluster Overview",
+      "uid": "cluster-overview"
+    }
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: grafana
+  namespace: monitoring
+  labels:
+    app.kubernetes.io/name: grafana
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: grafana
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: grafana
+    spec:
+      securityContext:
+        fsGroup: 472
+        runAsUser: 472
+        runAsNonRoot: true
+      containers:
+        - name: grafana
+          image: grafana/grafana:13.1.0
+          ports:
+            - name: http
+              containerPort: 3000
+          env:
+            - name: GF_SECURITY_ADMIN_PASSWORD
+              value: "admin"
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              memory: 256Mi
+          volumeMounts:
+            - name: config
+              mountPath: /etc/grafana/grafana.ini
+              subPath: grafana.ini
+            - name: datasources
+              mountPath: /etc/grafana/provisioning/datasources
+            - name: dashboard-provider
+              mountPath: /etc/grafana/provisioning/dashboards
+            - name: dashboards
+              mountPath: /var/lib/grafana/dashboards
+            - name: data
+              mountPath: /var/lib/grafana
+          readinessProbe:
+            httpGet:
+              path: /api/health
+              port: http
+            initialDelaySeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /api/health
+              port: http
+            initialDelaySeconds: 30
+      volumes:
+        - name: config
+          configMap:
+            name: grafana-config
+        - name: datasources
+          configMap:
+            name: grafana-datasources
+        - name: dashboard-provider
+          configMap:
+            name: grafana-dashboard-provider
+        - name: dashboards
+          configMap:
+            name: grafana-dashboards
+        # TODO: Switch to PVC once Rook-Ceph StorageClass is available
+        - name: data
+          emptyDir: {}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: grafana
+  namespace: monitoring
+  labels:
+    app.kubernetes.io/name: grafana
+spec:
+  type: ClusterIP
+  ports:
+    - name: http
+      port: 80
+      targetPort: http
+  selector:
+    app.kubernetes.io/name: grafana
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: grafana
+  namespace: monitoring
+spec:
+  parentRefs:
+    - name: cilium-gateway
+      namespace: kube-system
+  hostnames:
+    - grafana.local.negativezone.cc
+  rules:
+    - matches:
+        - path:
+            type: PathPrefix
+            value: /
+      backendRefs:
+        - name: grafana
+          port: 80

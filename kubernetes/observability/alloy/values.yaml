@@ -93,7 +93,7 @@ alloy:
       // -----------------------------------------------------------------------
       prometheus.remote_write "default" {
         endpoint {
-          url = "http://kube-prometheus-stack-prometheus.monitoring.svc.cluster.local:9090/api/v1/write"
+          url = "http://prometheus.monitoring.svc.cluster.local:9090/api/v1/write"
         }
       }
 
@@ -127,7 +127,7 @@ controller:
 # Service Monitor — let Prometheus scrape Alloy metrics
 # =============================================================================
 serviceMonitor:
-  enabled: true
+  enabled: false
 
 # =============================================================================
 # Image defaults (uses chart appVersion)
