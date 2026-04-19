@@ -1,0 +1,13 @@
+# MetalLB Helm values for k8s-homelab
+# Chart: metallb/metallb v0.14.9
+# L2 mode — speaker runs on all nodes
+
+speaker:
+  tolerations:
+    - effect: NoSchedule
+      operator: Exists
+
+controller:
+  tolerations:
+    - effect: NoSchedule
+      operator: Exists
