@@ -222,10 +222,19 @@ data:
           - source_labels: [__meta_kubernetes_pod_node_name]
             target_label: node
 
-      # Hubble Relay metrics
+      # Hubble Relay metrics (pod SD since service doesn't expose metrics port)
       - job_name: hubble-relay
-        static_configs:
-          - targets: ["hubble-relay.kube-system.svc:9966"]
+        kubernetes_sd_configs:
+          - role: pod
+            namespaces:
+              names: [kube-system]
+        relabel_configs:
+          - source_labels: [__meta_kubernetes_pod_label_k8s_app]
+            regex: hubble-relay
+            action: keep
+          - source_labels: [__meta_kubernetes_pod_container_port_number]
+            regex: "9966"
+            action: keep
 
       # CoreDNS metrics
       - job_name: coredns
