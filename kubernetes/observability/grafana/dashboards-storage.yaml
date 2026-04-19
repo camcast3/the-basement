@@ -627,7 +627,8 @@ data:
             "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false }
           }
         }
-      ]
+      ],
+      "version": 1
     }
   pvc-usage.json: |
     {
@@ -1005,5 +1006,6 @@ data:
             "showThresholdMarkers": true
           }
         }
-      ]
+      ],
+      "version": 1
     }

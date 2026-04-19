@@ -521,7 +521,8 @@ data:
             "tooltip": { "mode": "single" }
           }
         }
-      ]
+      ],
+      "version": 1
     }
   argo-rollouts.json: |
     {
@@ -1091,5 +1092,6 @@ data:
             "tooltip": { "mode": "single" }
           }
         }
-      ]
+      ],
+      "version": 1
     }

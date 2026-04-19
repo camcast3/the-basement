@@ -298,7 +298,8 @@ data:
             }
           }
         }
-      ]
+      ],
+      "version": 1
     }
   plex-streaming.json: |
     {
@@ -557,7 +558,8 @@ data:
             }
           }
         }
-      ]
+      ],
+      "version": 1
     }
   homelab-services.json: |
     {
@@ -1263,5 +1265,6 @@ data:
       "links": [],
       "fiscalYearStartMonth": 0,
       "liveNow": false,
-      "weekStart": ""
+      "weekStart": "",
+      "version": 1
     }

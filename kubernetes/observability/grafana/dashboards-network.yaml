@@ -1185,7 +1185,8 @@ data:
       "annotations": {
         "list": []
       },
-      "links": []
+      "links": [],
+      "version": 1
     }
   coredns.json: |
     {
@@ -1475,5 +1476,6 @@ data:
             "legend": { "displayMode": "list", "placement": "bottom" }
           }
         }
-      ]
+      ],
+      "version": 1
     }

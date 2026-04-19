@@ -560,5 +560,6 @@ data:
                     "legend": { "displayMode": "table", "placement": "bottom", "calcs": ["mean", "max"] }
                 }
             }
-        ]
+        ],
+        "version": 1
     }
