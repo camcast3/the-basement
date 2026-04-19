@@ -18,9 +18,9 @@ Complete the Ceph cluster setup on the 3 Proxmox nodes. Full instructions in [Ce
 - [x] Verify `ceph -s` shows `HEALTH_OK` — [Section 7](ceph-tb4-setup-guide.md#7-verify-ceph-health)
 - [x] Migrate Ceph cluster_network to TB4 (`10.100.0.0/24`) — see below
 - [x] Verify OSD replication is on TB4 network (`10.100.0.x`) — [Section 7](ceph-tb4-setup-guide.md#7-verify-ceph-health)
-- [ ] Add Ceph storage to Proxmox (RBD + CephFS) — [Section 8](ceph-tb4-setup-guide.md#8-add-ceph-storage-to-proxmox)
-- [ ] Apply performance tuning (NVMe, scrub scheduling) — [Section 10](ceph-tb4-setup-guide.md#10-performance-tuning)
-- [ ] Enable Prometheus metrics (`ceph mgr module enable prometheus`) — [Section 10](ceph-tb4-setup-guide.md#10-performance-tuning)
+- [x] Add Ceph storage to Proxmox (RBD + CephFS) — [Section 8](ceph-tb4-setup-guide.md#8-add-ceph-storage-to-proxmox)
+- [x] Apply performance tuning (NVMe, scrub scheduling) — [Section 10](ceph-tb4-setup-guide.md#10-performance-tuning)
+- [x] Enable Prometheus metrics (`ceph mgr module enable prometheus`) — [Section 10](ceph-tb4-setup-guide.md#10-performance-tuning)
 
 ### TB4 Cluster Network Migration ✅ COMPLETED
 
