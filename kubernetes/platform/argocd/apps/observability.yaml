@@ -32,12 +32,12 @@ spec:
       - ServerSideApply=true
       - RespectIgnoreDifferences=true
   ignoreDifferences:
-    # Gateway API resources get mutated by Cilium gateway controller
+    # Gateway API: controller adds status + API server defaults group/kind in parentRefs
     - group: gateway.networking.k8s.io
       kind: HTTPRoute
-      jqPathExpressions:
-        - .spec.parentRefs[].sectionName
-        - .metadata.annotations["kubectl.kubernetes.io/last-applied-configuration"]
+      jsonPointers:
+        - /metadata/annotations/kubectl.kubernetes.io~1last-applied-configuration
+        - /spec/parentRefs
     # StatefulSets have immutable VCT fields that SSA detects as drift
     - group: apps
       kind: StatefulSet
@@ -47,5 +47,5 @@ spec:
     # InfisicalSecret status managed by operator
     - group: secrets.infisical.com
       kind: InfisicalSecret
-      jqPathExpressions:
-        - .status
+      jsonPointers:
+        - /status
