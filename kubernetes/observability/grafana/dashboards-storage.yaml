@@ -761,25 +761,25 @@ data:
           "targets": [
             {
               "refId": "A",
-              "expr": "kubelet_volume_stats_capacity_bytes * on(namespace, persistentvolumeclaim) group_left(storageclass, volumemode) kube_persistentvolumeclaim_info",
+              "expr": "kubelet_volume_stats_capacity_bytes * on(namespace, persistentvolumeclaim) group_left(storageclass, volumemode) max by(namespace, persistentvolumeclaim, storageclass, volumemode) (kube_persistentvolumeclaim_info)",
               "instant": true,
               "format": "table"
             },
             {
               "refId": "B",
-              "expr": "kubelet_volume_stats_used_bytes * on(namespace, persistentvolumeclaim) group_left(storageclass, volumemode) kube_persistentvolumeclaim_info",
+              "expr": "kubelet_volume_stats_used_bytes * on(namespace, persistentvolumeclaim) group_left(storageclass, volumemode) max by(namespace, persistentvolumeclaim, storageclass, volumemode) (kube_persistentvolumeclaim_info)",
               "instant": true,
               "format": "table"
             },
             {
               "refId": "C",
-              "expr": "kubelet_volume_stats_available_bytes * on(namespace, persistentvolumeclaim) group_left(storageclass, volumemode) kube_persistentvolumeclaim_info",
+              "expr": "kubelet_volume_stats_available_bytes * on(namespace, persistentvolumeclaim) group_left(storageclass, volumemode) max by(namespace, persistentvolumeclaim, storageclass, volumemode) (kube_persistentvolumeclaim_info)",
               "instant": true,
               "format": "table"
             },
             {
               "refId": "D",
-              "expr": "(kubelet_volume_stats_used_bytes / kubelet_volume_stats_capacity_bytes) * on(namespace, persistentvolumeclaim) group_left(storageclass, volumemode) kube_persistentvolumeclaim_info",
+              "expr": "(kubelet_volume_stats_used_bytes / kubelet_volume_stats_capacity_bytes) * on(namespace, persistentvolumeclaim) group_left(storageclass, volumemode) max by(namespace, persistentvolumeclaim, storageclass, volumemode) (kube_persistentvolumeclaim_info)",
               "instant": true,
               "format": "table"
             }
