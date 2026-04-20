@@ -150,7 +150,9 @@ metadata:
   labels:
     app.kubernetes.io/name: grafana
 data:
-  # Scraparr uses ${datasource} template variable — no overrides needed.
+  # Scraparr uses ${DS_MIMIR} __input for most panels
+  scraparr: |
+    ${DS_MIMIR}=prometheus-watchtower
   # NZBGet dashboard hardcodes ${DS_PROMETHEUS} from __inputs
   nzbget: |
     ${DS_PROMETHEUS}=prometheus-watchtower
@@ -181,7 +183,7 @@ data:
   scraparr: |
     .templating.list |= map(if .name == "datasource" then .current.value = "prometheus-watchtower" | .current.text = "Prometheus - Watchtower" else . end)
   traefik: |
-    .title = "Traefik — Reverse Proxy" |
+    .title = "Traefik - Reverse Proxy" |
     .tags = ["traefik", "homelab", "reverse-proxy"] |
     .uid = "traefik-homelab" |
     .refresh = "30s" |
