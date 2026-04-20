@@ -349,7 +349,9 @@ metadata:
   namespace: monitoring
 spec:
   parentRefs:
-    - name: cilium-gateway
+    - group: gateway.networking.k8s.io
+      kind: Gateway
+      name: cilium-gateway
       namespace: kube-system
   hostnames:
     - prom-ingest.local.negativezone.cc
@@ -360,5 +362,8 @@ spec:
             value: /api/v1/write
           method: POST
       backendRefs:
-        - name: prometheus
+        - group: ""
+          kind: Service
+          name: prometheus
           port: 9090
+          weight: 1

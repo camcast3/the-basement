@@ -116,7 +116,9 @@ metadata:
   namespace: monitoring
 spec:
   parentRefs:
-    - name: cilium-gateway
+    - group: gateway.networking.k8s.io
+      kind: Gateway
+      name: cilium-gateway
       namespace: kube-system
   hostnames:
     - alertmanager.local.negativezone.cc
@@ -126,5 +128,8 @@ spec:
             type: PathPrefix
             value: /
       backendRefs:
-        - name: alertmanager
+        - group: ""
+          kind: Service
+          name: alertmanager
           port: 9093
+          weight: 1
