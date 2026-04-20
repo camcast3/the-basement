@@ -1,0 +1,492 @@
+# Prometheus alerting rules — all groups in a single ConfigMap
+# Each data key maps to a rules file at /etc/prometheus/rules/<key>
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: prometheus-rules
+  namespace: monitoring
+  labels:
+    app.kubernetes.io/name: prometheus
+data:
+  cluster-alerts.yml: |
+    groups:
+      - name: cluster.critical
+        rules:
+          - alert: NodeDown
+            expr: up{job="node-exporter"} == 0
+            for: 5m
+            labels:
+              severity: critical
+            annotations:
+              summary: "Node exporter down on {{ $labels.instance }}"
+              description: "Node exporter has been unreachable for 5 minutes."
+
+          - alert: NodeNotReady
+            expr: kube_node_status_condition{condition="Ready",status="true"} == 0
+            for: 5m
+            labels:
+              severity: critical
+            annotations:
+              summary: "Node {{ $labels.node }} is NotReady"
+              description: "Kubernetes node has been in NotReady state for 5 minutes."
+
+          - alert: KubeletDown
+            expr: up{job="kubelet"} == 0
+            for: 5m
+            labels:
+              severity: critical
+            annotations:
+              summary: "Kubelet down on {{ $labels.instance }}"
+              description: "Kubelet has been unreachable for 5 minutes."
+
+          - alert: PrometheusDown
+            expr: up{job="prometheus"} == 0
+            for: 2m
+            labels:
+              severity: critical
+            annotations:
+              summary: "Prometheus is down"
+              description: "Prometheus self-scrape has failed for 2 minutes."
+
+          - alert: AlertmanagerDown
+            expr: up{job="alertmanager"} == 0
+            for: 2m
+            labels:
+              severity: critical
+            annotations:
+              summary: "Alertmanager is down"
+              description: "Alertmanager has been unreachable for 2 minutes."
+
+          - alert: NodeDiskPressure
+            expr: kube_node_status_condition{condition="DiskPressure",status="true"} == 1
+            for: 5m
+            labels:
+              severity: critical
+            annotations:
+              summary: "Node {{ $labels.node }} has disk pressure"
+              description: "Node is reporting DiskPressure condition."
+
+          - alert: NodeMemoryPressure
+            expr: kube_node_status_condition{condition="MemoryPressure",status="true"} == 1
+            for: 5m
+            labels:
+              severity: critical
+            annotations:
+              summary: "Node {{ $labels.node }} has memory pressure"
+              description: "Node is reporting MemoryPressure condition."
+
+          - alert: ClusterHighCPU
+            expr: avg(1 - rate(node_cpu_seconds_total{mode="idle",job="node-exporter"}[5m])) > 0.90
+            for: 10m
+            labels:
+              severity: critical
+            annotations:
+              summary: "Cluster CPU usage above 90%"
+              description: "Average cluster CPU utilization is {{ $value | humanizePercentage }}."
+
+          - alert: ClusterHighMemory
+            expr: 1 - sum(node_memory_MemAvailable_bytes{job="node-exporter"}) / sum(node_memory_MemTotal_bytes{job="node-exporter"}) > 0.90
+            for: 10m
+            labels:
+              severity: critical
+            annotations:
+              summary: "Cluster memory usage above 90%"
+              description: "Cluster memory utilization is {{ $value | humanizePercentage }}."
+
+      - name: cluster.warning
+        rules:
+          - alert: HighNodeCPU
+            expr: (1 - rate(node_cpu_seconds_total{mode="idle",job="node-exporter"}[5m])) > 0.80
+            for: 15m
+            labels:
+              severity: warning
+            annotations:
+              summary: "High CPU on {{ $labels.instance }}"
+              description: "Node CPU utilization is {{ $value | humanizePercentage }}."
+
+          - alert: HighNodeMemory
+            expr: 1 - node_memory_MemAvailable_bytes{job="node-exporter"} / node_memory_MemTotal_bytes{job="node-exporter"} > 0.85
+            for: 15m
+            labels:
+              severity: warning
+            annotations:
+              summary: "High memory on {{ $labels.instance }}"
+              description: "Node memory utilization is {{ $value | humanizePercentage }}."
+
+          - alert: NodeFilesystemSpaceLow
+            expr: node_filesystem_avail_bytes{job="node-exporter",fstype!~"tmpfs|overlay"} / node_filesystem_size_bytes{job="node-exporter",fstype!~"tmpfs|overlay"} < 0.15
+            for: 10m
+            labels:
+              severity: warning
+            annotations:
+              summary: "Filesystem low on {{ $labels.instance }} ({{ $labels.mountpoint }})"
+              description: "Filesystem has {{ $value | humanizePercentage }} free space."
+
+          - alert: CoreDNSDown
+            expr: up{job="coredns"} == 0
+            for: 5m
+            labels:
+              severity: warning
+            annotations:
+              summary: "CoreDNS is down"
+              description: "CoreDNS has been unreachable for 5 minutes."
+
+          - alert: KubeAPILatencyHigh
+            expr: histogram_quantile(0.99, sum(rate(apiserver_request_duration_seconds_bucket{verb!~"WATCH|CONNECT"}[5m])) by (le)) > 1
+            for: 10m
+            labels:
+              severity: warning
+            annotations:
+              summary: "Kube API p99 latency above 1s"
+              description: "The p99 API server request latency is {{ $value | humanizeDuration }}."
+
+      - name: cluster.info
+        rules:
+          - alert: NodeFilesystemSpaceWarning
+            expr: node_filesystem_avail_bytes{job="node-exporter",fstype!~"tmpfs|overlay"} / node_filesystem_size_bytes{job="node-exporter",fstype!~"tmpfs|overlay"} < 0.25
+            for: 30m
+            labels:
+              severity: info
+            annotations:
+              summary: "Filesystem warning on {{ $labels.instance }} ({{ $labels.mountpoint }})"
+              description: "Filesystem has {{ $value | humanizePercentage }} free space."
+
+          - alert: CertificateExpiringSoon
+            expr: certmanager_certificate_expiration_timestamp_seconds - time() < 86400 * 14
+            for: 1h
+            labels:
+              severity: info
+            annotations:
+              summary: "Certificate {{ $labels.name }} expires soon"
+              description: "Certificate in namespace {{ $labels.namespace }} expires in {{ $value | humanizeDuration }}."
+
+  workload-alerts.yml: |
+    groups:
+      - name: workload.critical
+        rules:
+          - alert: PodCrashLooping
+            expr: rate(kube_pod_container_status_restarts_total[15m]) * 60 * 15 > 1
+            for: 5m
+            labels:
+              severity: critical
+            annotations:
+              summary: "Pod {{ $labels.namespace }}/{{ $labels.pod }} crash looping"
+              description: "Container {{ $labels.container }} has restarted {{ $value | humanize }} times in the last 15 minutes."
+
+          - alert: PodOOMKilled
+            expr: kube_pod_container_status_last_terminated_reason{reason="OOMKilled"} == 1
+            for: 0m
+            labels:
+              severity: critical
+            annotations:
+              summary: "Pod {{ $labels.namespace }}/{{ $labels.pod }} OOMKilled"
+              description: "Container {{ $labels.container }} was terminated due to OOMKill."
+
+          - alert: DeploymentReplicasMismatch
+            expr: kube_deployment_spec_replicas != kube_deployment_status_available_replicas
+            for: 10m
+            labels:
+              severity: critical
+            annotations:
+              summary: "Deployment {{ $labels.namespace }}/{{ $labels.deployment }} replicas mismatch"
+              description: "Desired {{ $labels.deployment }}: {{ printf `kube_deployment_spec_replicas{namespace=\"%s\",deployment=\"%s\"}` $labels.namespace $labels.deployment | query | first | value }} vs available: {{ $value }}."
+
+      - name: workload.warning
+        rules:
+          - alert: ContainerHighCPU
+            expr: sum(rate(container_cpu_usage_seconds_total{namespace!="",container!="",container!="POD"}[5m])) by (namespace, pod, container) / sum(kube_pod_container_resource_limits{resource="cpu",namespace!="",container!=""}) by (namespace, pod, container) > 0.80
+            for: 15m
+            labels:
+              severity: warning
+            annotations:
+              summary: "High CPU in {{ $labels.namespace }}/{{ $labels.pod }}/{{ $labels.container }}"
+              description: "Container CPU usage is {{ $value | humanizePercentage }} of its limit."
+
+          - alert: ContainerHighMemory
+            expr: sum(container_memory_working_set_bytes{namespace!="",container!="",container!="POD"}) by (namespace, pod, container) / sum(kube_pod_container_resource_limits{resource="memory",namespace!="",container!=""}) by (namespace, pod, container) > 0.85
+            for: 15m
+            labels:
+              severity: warning
+            annotations:
+              summary: "High memory in {{ $labels.namespace }}/{{ $labels.pod }}/{{ $labels.container }}"
+              description: "Container memory usage is {{ $value | humanizePercentage }} of its limit."
+
+          - alert: PodNotReady
+            expr: kube_pod_status_ready{condition="true"} == 0
+            for: 10m
+            labels:
+              severity: warning
+            annotations:
+              summary: "Pod {{ $labels.namespace }}/{{ $labels.pod }} not ready"
+              description: "Pod has been in a non-ready state for 10 minutes."
+
+          - alert: PVCUsageHigh
+            expr: kubelet_volume_stats_used_bytes / kubelet_volume_stats_capacity_bytes > 0.85
+            for: 15m
+            labels:
+              severity: warning
+            annotations:
+              summary: "PVC {{ $labels.namespace }}/{{ $labels.persistentvolumeclaim }} usage above 85%"
+              description: "PVC is {{ $value | humanizePercentage }} full."
+
+      - name: workload.info
+        rules:
+          - alert: PodPending
+            expr: kube_pod_status_phase{phase="Pending"} == 1
+            for: 15m
+            labels:
+              severity: info
+            annotations:
+              summary: "Pod {{ $labels.namespace }}/{{ $labels.pod }} stuck in Pending"
+              description: "Pod has been in Pending state for 15 minutes."
+
+          - alert: PVCUsageWarning
+            expr: kubelet_volume_stats_used_bytes / kubelet_volume_stats_capacity_bytes > 0.70
+            for: 30m
+            labels:
+              severity: info
+            annotations:
+              summary: "PVC {{ $labels.namespace }}/{{ $labels.persistentvolumeclaim }} usage above 70%"
+              description: "PVC is {{ $value | humanizePercentage }} full."
+
+  platform-alerts.yml: |
+    groups:
+      - name: platform.critical
+        rules:
+          - alert: CephHealthError
+            expr: ceph_health_status == 2
+            for: 5m
+            labels:
+              severity: critical
+            annotations:
+              summary: "Ceph cluster health is ERROR"
+              description: "Ceph cluster has been in HEALTH_ERR state for 5 minutes."
+
+          - alert: CiliumAgentDown
+            expr: up{job="cilium-agent"} == 0
+            for: 5m
+            labels:
+              severity: critical
+            annotations:
+              summary: "Cilium agent down on {{ $labels.instance }}"
+              description: "Cilium networking agent has been unreachable for 5 minutes."
+
+          - alert: ArgoCDSyncFailed
+            expr: argocd_app_info{sync_status="Unknown",health_status="Degraded"} == 1
+            for: 10m
+            labels:
+              severity: critical
+            annotations:
+              summary: "ArgoCD app {{ $labels.name }} sync failed"
+              description: "ArgoCD application is in Degraded/Unknown state."
+
+      - name: platform.warning
+        rules:
+          - alert: ArgoCDAppOutOfSync
+            expr: argocd_app_info{sync_status!="Synced"} == 1
+            for: 30m
+            labels:
+              severity: warning
+            annotations:
+              summary: "ArgoCD app {{ $labels.name }} out of sync"
+              description: "Application has been out of sync for 30 minutes."
+
+          - alert: CephHealthWarning
+            expr: ceph_health_status == 1
+            for: 10m
+            labels:
+              severity: warning
+            annotations:
+              summary: "Ceph cluster health is WARNING"
+              description: "Ceph cluster has been in HEALTH_WARN state for 10 minutes."
+
+          - alert: CephOSDDown
+            expr: ceph_osd_up == 0
+            for: 5m
+            labels:
+              severity: warning
+            annotations:
+              summary: "Ceph OSD {{ $labels.ceph_daemon }} is down"
+              description: "OSD has been down for 5 minutes."
+
+          - alert: CephOSDNearFull
+            expr: ceph_osd_utilization > 80
+            for: 10m
+            labels:
+              severity: warning
+            annotations:
+              summary: "Ceph OSD {{ $labels.ceph_daemon }} near full ({{ $value }}%)"
+              description: "OSD utilization is above 80%."
+
+          - alert: GrafanaDown
+            expr: up{job="grafana"} == 0
+            for: 5m
+            labels:
+              severity: warning
+            annotations:
+              summary: "Grafana is down"
+              description: "Grafana has been unreachable for 5 minutes."
+
+          - alert: LokiDown
+            expr: up{job=~"loki.*"} == 0
+            for: 5m
+            labels:
+              severity: warning
+            annotations:
+              summary: "Loki is down"
+              description: "Loki has been unreachable for 5 minutes."
+
+      - name: platform.info
+        rules:
+          - alert: CephPGNotClean
+            expr: ceph_pg_clean < ceph_pg_total
+            for: 30m
+            labels:
+              severity: info
+            annotations:
+              summary: "Ceph PGs not fully clean"
+              description: "{{ $value }} PGs are in a non-clean state."
+
+  homelab-alerts.yml: |
+    groups:
+      - name: homelab.critical
+        rules:
+          - alert: PlexDown
+            expr: up{job="plex"} == 0
+            for: 5m
+            labels:
+              severity: critical
+            annotations:
+              summary: "Plex Media Server is down"
+              description: "Plex exporter has been unreachable for 5 minutes."
+
+          - alert: AuthentikDown
+            expr: up{job="authentik"} == 0
+            for: 5m
+            labels:
+              severity: critical
+            annotations:
+              summary: "Authentik SSO is down"
+              description: "Authentik has been unreachable for 5 minutes."
+
+      - name: homelab.warning
+        rules:
+          - alert: PlexHighCPU
+            expr: host_cpu_util{job="plex"} > 85
+            for: 10m
+            labels:
+              severity: warning
+            annotations:
+              summary: "Plex host CPU above 85%"
+              description: "Plex server CPU utilization is {{ $value | printf \"%.1f\" }}%."
+
+          - alert: PlexHighMemory
+            expr: host_mem_util{job="plex"} > 90
+            for: 10m
+            labels:
+              severity: warning
+            annotations:
+              summary: "Plex host memory above 90%"
+              description: "Plex server memory utilization is {{ $value | printf \"%.1f\" }}%."
+
+          - alert: PlexGPUHighTemp
+            expr: DCGM_FI_DEV_GPU_TEMP{job="dcgm"} > 80
+            for: 5m
+            labels:
+              severity: warning
+            annotations:
+              summary: "Plex GPU temperature above 80C"
+              description: "GPU temperature is {{ $value }}C."
+
+          - alert: PlexGPUHighUtil
+            expr: DCGM_FI_DEV_GPU_UTIL{job="dcgm"} > 95
+            for: 10m
+            labels:
+              severity: warning
+            annotations:
+              summary: "Plex GPU utilization above 95%"
+              description: "GPU utilization is {{ $value }}%."
+
+          - alert: NZBGetDown
+            expr: up{job="nzbget"} == 0
+            for: 10m
+            labels:
+              severity: warning
+            annotations:
+              summary: "NZBGet is down"
+              description: "NZBGet exporter has been unreachable for 10 minutes."
+
+          - alert: ScraparrDown
+            expr: up{job="scraparr"} == 0
+            for: 10m
+            labels:
+              severity: warning
+            annotations:
+              summary: "Scraparr is down"
+              description: "Scraparr exporter has been unreachable for 10 minutes."
+
+          - alert: ImmichDown
+            expr: up{job="immich"} == 0
+            for: 10m
+            labels:
+              severity: warning
+            annotations:
+              summary: "Immich is down"
+              description: "Immich photo service has been unreachable for 10 minutes."
+
+          - alert: PiholeDown
+            expr: up{job="pihole"} == 0
+            for: 5m
+            labels:
+              severity: warning
+            annotations:
+              summary: "Pi-hole is down"
+              description: "Pi-hole DNS has been unreachable for 5 minutes."
+
+          - alert: WatchtowerCadvisorDown
+            expr: up{job="cadvisor"} == 0
+            for: 5m
+            labels:
+              severity: warning
+            annotations:
+              summary: "Watchtower cAdvisor is down"
+              description: "Docker container metrics collection is offline."
+
+          - alert: WatchtowerNodeExporterDown
+            expr: up{job="node_exporter"} == 0
+            for: 5m
+            labels:
+              severity: warning
+            annotations:
+              summary: "Watchtower node exporter is down"
+              description: "Host metrics collection is offline."
+
+      - name: homelab.info
+        rules:
+          - alert: TraefikDown
+            expr: up{job="traefik"} == 0
+            for: 15m
+            labels:
+              severity: info
+            annotations:
+              summary: "Traefik metrics endpoint is down"
+              description: "Traefik reverse proxy metrics have been unreachable."
+
+          - alert: InfisicalExporterDown
+            expr: up{job="infisical"} == 0
+            for: 10m
+            labels:
+              severity: info
+            annotations:
+              summary: "Infisical exporter is down"
+              description: "Infisical secrets service metrics are unreachable."
+
+          - alert: NtfyDown
+            expr: up{job="ntfy"} == 0
+            for: 10m
+            labels:
+              severity: info
+            annotations:
+              summary: "ntfy notification service is down"
+              description: "ntfy push notification service is unreachable."

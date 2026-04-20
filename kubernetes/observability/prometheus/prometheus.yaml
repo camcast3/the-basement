@@ -51,6 +51,14 @@ data:
       scrape_interval: 30s
       evaluation_interval: 30s
 
+    rule_files:
+      - /etc/prometheus/rules/*.yml
+
+    alerting:
+      alertmanagers:
+        - static_configs:
+            - targets: ["alertmanager.monitoring.svc:9093"]
+
     remote_write:
       - url: http://localhost:9090/api/v1/write
 
@@ -299,6 +307,8 @@ spec:
           volumeMounts:
             - name: config
               mountPath: /etc/prometheus
+            - name: rules
+              mountPath: /etc/prometheus/rules
             - name: data
               mountPath: /prometheus
           readinessProbe:
@@ -315,6 +325,9 @@ spec:
         - name: config
           configMap:
             name: prometheus-config
+        - name: rules
+          configMap:
+            name: prometheus-rules
   volumeClaimTemplates:
     - metadata:
         name: data

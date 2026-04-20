@@ -12,21 +12,67 @@ data:
       resolve_timeout: 5m
 
     route:
-      receiver: default
+      receiver: ntfy-warning
       group_by: [alertname, namespace]
       group_wait: 30s
       group_interval: 5m
       repeat_interval: 4h
+      routes:
+        - receiver: ntfy-critical
+          matchers:
+            - severity = critical
+          group_wait: 10s
+          repeat_interval: 1h
+          continue: false
+        - receiver: ntfy-warning
+          matchers:
+            - severity = warning
+          continue: false
+        - receiver: ntfy-info
+          matchers:
+            - severity = info
+          repeat_interval: 12h
+          continue: false
 
     receivers:
-      - name: default
-        # TODO: Add webhook/email/Slack receivers
+      - name: ntfy-critical
+        webhook_configs:
+          - url: https://ntfy.local.negativezone.cc/critical
+            send_resolved: true
+            http_config:
+              tls_config:
+                insecure_skip_verify: true
+      - name: ntfy-warning
+        webhook_configs:
+          - url: https://ntfy.local.negativezone.cc/warning
+            send_resolved: true
+            http_config:
+              tls_config:
+                insecure_skip_verify: true
+      - name: ntfy-info
+        webhook_configs:
+          - url: https://ntfy.local.negativezone.cc/info
+            send_resolved: true
+            http_config:
+              tls_config:
+                insecure_skip_verify: true
+      - name: "null"
 
     inhibit_rules:
       - source_matchers:
           - severity = critical
         target_matchers:
           - severity = warning
+        equal: [alertname, namespace]
+      - source_matchers:
+          - severity = critical
+        target_matchers:
+          - severity = info
+        equal: [alertname, namespace]
+      - source_matchers:
+          - severity = warning
+        target_matchers:
+          - severity = info
         equal: [alertname, namespace]
 ---
 apiVersion: apps/v1
