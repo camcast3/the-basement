@@ -1,0 +1,123 @@
+# apply-cilium-gateway.yml
+# Applies Cilium Gateway API resources and the Hubble UI HTTPRoute.
+#
+# These resources depend on Cilium CRDs (CiliumLoadBalancerIPPool,
+# CiliumL2AnnouncementPolicy) and Gateway API CRDs (Gateway, HTTPRoute).
+# Managing them via Ansible instead of ArgoCD lets us wait for CRD
+# availability before applying, avoiding sync errors.
+#
+# Prerequisites:
+#   - A working kubeconfig for the target cluster
+#   - Cilium installed on the cluster (provides CRDs)
+#   - Gateway API CRDs installed (bundled with Cilium when gatewayAPI.enabled=true)
+#   - kubernetes.core Ansible collection installed
+#
+# Usage:
+#   ansible-playbook playbooks/apply-cilium-gateway.yml
+#   ansible-playbook playbooks/apply-cilium-gateway.yml -e kubeconfig=~/.kube/my-cluster
+---
+- name: Apply Cilium Gateway and Hubble UI Route
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  vars:
+    kubeconfig: "{{ lookup('env', 'KUBECONFIG') | default('~/.kube/config', true) }}"
+    repo_root: "{{ playbook_dir }}/../../"
+    gateway_manifest: "{{ repo_root }}/kubernetes/infrastructure/cilium/gateway.yaml"
+    httproute_manifest: "{{ repo_root }}/kubernetes/infrastructure/hubble-ui/httproute.yaml"
+
+  pre_tasks:
+    # =======================================================================
+    # Wait for Cilium CRDs to be available
+    # =======================================================================
+    - name: Wait for CiliumLoadBalancerIPPool CRD
+      kubernetes.core.k8s_info:
+        api_version: apiextensions.k8s.io/v1
+        kind: CustomResourceDefinition
+        name: ciliumloadbalancerippools.cilium.io
+        kubeconfig: "{{ kubeconfig }}"
+      register: crd_ippool
+      until: crd_ippool.resources | length > 0
+      retries: 30
+      delay: 10
+
+    - name: Wait for CiliumL2AnnouncementPolicy CRD
+      kubernetes.core.k8s_info:
+        api_version: apiextensions.k8s.io/v1
+        kind: CustomResourceDefinition
+        name: ciliuml2announcementpolicies.cilium.io
+        kubeconfig: "{{ kubeconfig }}"
+      register: crd_l2
+      until: crd_l2.resources | length > 0
+      retries: 30
+      delay: 10
+
+    - name: Wait for Gateway CRD
+      kubernetes.core.k8s_info:
+        api_version: apiextensions.k8s.io/v1
+        kind: CustomResourceDefinition
+        name: gateways.gateway.networking.k8s.io
+        kubeconfig: "{{ kubeconfig }}"
+      register: crd_gateway
+      until: crd_gateway.resources | length > 0
+      retries: 30
+      delay: 10
+
+    - name: Wait for HTTPRoute CRD
+      kubernetes.core.k8s_info:
+        api_version: apiextensions.k8s.io/v1
+        kind: CustomResourceDefinition
+        name: httproutes.gateway.networking.k8s.io
+        kubeconfig: "{{ kubeconfig }}"
+      register: crd_httproute
+      until: crd_httproute.resources | length > 0
+      retries: 30
+      delay: 10
+
+    - name: All required CRDs are available
+      ansible.builtin.debug:
+        msg: "✅ Cilium and Gateway API CRDs are ready"
+
+  tasks:
+    # =======================================================================
+    # 1. Apply Cilium Gateway resources
+    # =======================================================================
+    - name: Apply Cilium Gateway resources (IPPool, L2 Policy, Gateway)
+      kubernetes.core.k8s:
+        state: present
+        src: "{{ gateway_manifest }}"
+        kubeconfig: "{{ kubeconfig }}"
+        server_side_apply:
+          field_manager: ansible
+      register: gateway_result
+
+    # =======================================================================
+    # 2. Apply Hubble UI HTTPRoute
+    # =======================================================================
+    - name: Apply Hubble UI HTTPRoute
+      kubernetes.core.k8s:
+        state: present
+        src: "{{ httproute_manifest }}"
+        kubeconfig: "{{ kubeconfig }}"
+        server_side_apply:
+          field_manager: ansible
+      register: httproute_result
+
+    # =======================================================================
+    # Summary
+    # =======================================================================
+    - name: Display summary
+      ansible.builtin.debug:
+        msg: |
+          ========================================
+          Cilium Gateway resources applied!
+
+          ✅ CiliumLoadBalancerIPPool: homelab-pool
+          ✅ CiliumL2AnnouncementPolicy: homelab-l2
+          ✅ Gateway: cilium-gateway (kube-system)
+          ✅ HTTPRoute: hubble-ui (kube-system)
+
+          Gateway listeners:
+            HTTP  → :80 (all namespaces)
+            HTTPS → *.local.negativezone.cc:443
+          ========================================
