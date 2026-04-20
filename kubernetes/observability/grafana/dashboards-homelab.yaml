@@ -26,7 +26,7 @@ data:
             "type": "query",
             "datasource": {
               "type": "prometheus",
-              "uid": "prometheus"
+              "uid": "prometheus-watchtower"
             },
             "query": "label_values(plex_sessions_count, server_url)",
             "refresh": 2,
@@ -53,7 +53,7 @@ data:
           "title": "Active Sessions",
           "datasource": {
             "type": "prometheus",
-            "uid": "prometheus"
+            "uid": "prometheus-watchtower"
           },
           "gridPos": { "h": 4, "w": 6, "x": 0, "y": 1 },
           "targets": [
@@ -90,7 +90,7 @@ data:
           "title": "Transcoding",
           "datasource": {
             "type": "prometheus",
-            "uid": "prometheus"
+            "uid": "prometheus-watchtower"
           },
           "gridPos": { "h": 4, "w": 6, "x": 6, "y": 1 },
           "targets": [
@@ -128,7 +128,7 @@ data:
           "title": "Direct Stream",
           "datasource": {
             "type": "prometheus",
-            "uid": "prometheus"
+            "uid": "prometheus-watchtower"
           },
           "gridPos": { "h": 4, "w": 6, "x": 12, "y": 1 },
           "targets": [
@@ -165,7 +165,7 @@ data:
           "title": "Direct Play",
           "datasource": {
             "type": "prometheus",
-            "uid": "prometheus"
+            "uid": "prometheus-watchtower"
           },
           "gridPos": { "h": 4, "w": 6, "x": 18, "y": 1 },
           "targets": [
@@ -210,7 +210,7 @@ data:
           "title": "Sessions Over Time",
           "datasource": {
             "type": "prometheus",
-            "uid": "prometheus"
+            "uid": "prometheus-watchtower"
           },
           "gridPos": { "h": 8, "w": 24, "x": 0, "y": 6 },
           "targets": [
@@ -273,7 +273,7 @@ data:
           "title": "Library Sizes",
           "datasource": {
             "type": "prometheus",
-            "uid": "prometheus"
+            "uid": "prometheus-watchtower"
           },
           "gridPos": { "h": 8, "w": 24, "x": 0, "y": 15 },
           "targets": [
@@ -321,7 +321,7 @@ data:
             "type": "query",
             "datasource": {
               "type": "prometheus",
-              "uid": "prometheus"
+              "uid": "prometheus-watchtower"
             },
             "query": "label_values(plex_sessions_count, server_url)",
             "refresh": 2,
@@ -348,7 +348,7 @@ data:
           "title": "Play Method Breakdown",
           "datasource": {
             "type": "prometheus",
-            "uid": "prometheus"
+            "uid": "prometheus-watchtower"
           },
           "gridPos": { "h": 8, "w": 12, "x": 0, "y": 1 },
           "targets": [
@@ -392,7 +392,7 @@ data:
           "title": "Streaming Methods Over Time",
           "datasource": {
             "type": "prometheus",
-            "uid": "prometheus"
+            "uid": "prometheus-watchtower"
           },
           "gridPos": { "h": 8, "w": 12, "x": 12, "y": 1 },
           "targets": [
@@ -450,7 +450,7 @@ data:
           "title": "Top Users",
           "datasource": {
             "type": "prometheus",
-            "uid": "prometheus"
+            "uid": "prometheus-watchtower"
           },
           "gridPos": { "h": 8, "w": 12, "x": 0, "y": 10 },
           "targets": [
@@ -523,7 +523,7 @@ data:
           "title": "Per-User Play Time",
           "datasource": {
             "type": "prometheus",
-            "uid": "prometheus"
+            "uid": "prometheus-watchtower"
           },
           "gridPos": { "h": 8, "w": 12, "x": 12, "y": 10 },
           "targets": [
