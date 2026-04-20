@@ -131,9 +131,14 @@ data:
   nzbget: "https://raw.githubusercontent.com/frebib/nzbget-exporter/3f31fa1e8c3728a0952de8b4541f9d20b5342ce6/grafana/nzbget-1728694158729.json"
   # traefik/traefik v3.6.13 — standalone (Docker) dashboard
   traefik: "https://raw.githubusercontent.com/traefik/traefik/v3.6.13/contrib/grafana/traefik.json"
-  # timothystewart6/plex-monitoring-stack — pinned to commit
+  # timothystewart6/plex-monitoring-stack — pinned to commit 5de53e4
   plex: "https://raw.githubusercontent.com/timothystewart6/plex-monitoring-stack/5de53e45ec10956f179a027c3d9279c82fdd529c/grafana/provisioning/dashboards/plex.json"
   plex-streaming: "https://raw.githubusercontent.com/timothystewart6/plex-monitoring-stack/5de53e45ec10956f179a027c3d9279c82fdd529c/grafana/provisioning/dashboards/plex-streaming.json"
+  plex-gpu: "https://raw.githubusercontent.com/timothystewart6/plex-monitoring-stack/5de53e45ec10956f179a027c3d9279c82fdd529c/grafana/provisioning/dashboards/gpu.json"
+  plex-server: "https://raw.githubusercontent.com/timothystewart6/plex-monitoring-stack/5de53e45ec10956f179a027c3d9279c82fdd529c/grafana/provisioning/dashboards/server.json"
+  plex-container: "https://raw.githubusercontent.com/timothystewart6/plex-monitoring-stack/5de53e45ec10956f179a027c3d9279c82fdd529c/grafana/provisioning/dashboards/container.json"
+  plex-thermals: "https://raw.githubusercontent.com/timothystewart6/plex-monitoring-stack/5de53e45ec10956f179a027c3d9279c82fdd529c/grafana/provisioning/dashboards/thermals.json"
+  plex-media-server: "https://raw.githubusercontent.com/timothystewart6/plex-monitoring-stack/5de53e45ec10956f179a027c3d9279c82fdd529c/grafana/provisioning/dashboards/media-server.json"
 ---
 # Datasource overrides for external dashboards. Each key must match a
 # dashboard name from the registry above. Values are find=replace pairs
@@ -161,6 +166,9 @@ data:
     ${DS_PROMETHEUS}=prometheus-watchtower
   # Traefik dashboard hardcodes ${DS_PROMETHEUS} from __inputs
   traefik: |
+    ${DS_PROMETHEUS}=prometheus-watchtower
+  # Server dashboard uses ${DS_PROMETHEUS} __input
+  plex-server: |
     ${DS_PROMETHEUS}=prometheus-watchtower
 ---
 # jq patches for external dashboards. Each key must match a dashboard name
@@ -200,6 +208,31 @@ data:
     .templating.list |= map(if .name == "datasource" then .current.value = "prometheus-watchtower" | .current.text = "Prometheus - Watchtower" else . end) |
     .tags = ["plex", "media", "streaming"] |
     .uid = "plex-streaming" |
+    .refresh = "1m"
+  plex-gpu: |
+    .templating.list |= map(if .name == "datasource" then .current.value = "prometheus-watchtower" | .current.text = "Prometheus - Watchtower" else . end) |
+    .tags = ["plex", "gpu", "nvidia"] |
+    .uid = "plex-gpu" |
+    .refresh = "30s"
+  plex-server: |
+    .templating.list |= map(if .name == "datasource" then .current.value = "prometheus-watchtower" | .current.text = "Prometheus - Watchtower" else . end) |
+    .tags = ["plex", "server", "node-exporter"] |
+    .uid = "plex-server-dash" |
+    .refresh = "30s"
+  plex-container: |
+    .templating.list |= map(if .name == "datasource" then .current.value = "prometheus-watchtower" | .current.text = "Prometheus - Watchtower" else . end) |
+    .tags = ["plex", "docker", "cadvisor"] |
+    .uid = "plex-container" |
+    .refresh = "30s"
+  plex-thermals: |
+    .templating.list |= map(if .name == "datasource" then .current.value = "prometheus-watchtower" | .current.text = "Prometheus - Watchtower" else . end) |
+    .tags = ["plex", "thermals", "hardware"] |
+    .uid = "plex-thermals" |
+    .refresh = "30s"
+  plex-media-server: |
+    .templating.list |= map(if .name == "datasource" then .current.value = "prometheus-watchtower" | .current.text = "Prometheus - Watchtower" else . end) |
+    .tags = ["plex", "media"] |
+    .uid = "plex-media-server" |
     .refresh = "1m"
 ---
 apiVersion: apps/v1
