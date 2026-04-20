@@ -761,31 +761,25 @@ data:
           "targets": [
             {
               "refId": "A",
-              "expr": "kube_persistentvolumeclaim_info",
+              "expr": "kubelet_volume_stats_capacity_bytes * on(namespace, persistentvolumeclaim) group_left(storageclass, volumemode) kube_persistentvolumeclaim_info",
               "instant": true,
               "format": "table"
             },
             {
               "refId": "B",
-              "expr": "kubelet_volume_stats_capacity_bytes",
+              "expr": "kubelet_volume_stats_used_bytes * on(namespace, persistentvolumeclaim) group_left(storageclass, volumemode) kube_persistentvolumeclaim_info",
               "instant": true,
               "format": "table"
             },
             {
               "refId": "C",
-              "expr": "kubelet_volume_stats_used_bytes",
+              "expr": "kubelet_volume_stats_available_bytes * on(namespace, persistentvolumeclaim) group_left(storageclass, volumemode) kube_persistentvolumeclaim_info",
               "instant": true,
               "format": "table"
             },
             {
               "refId": "D",
-              "expr": "kubelet_volume_stats_available_bytes",
-              "instant": true,
-              "format": "table"
-            },
-            {
-              "refId": "E",
-              "expr": "kubelet_volume_stats_used_bytes / kubelet_volume_stats_capacity_bytes",
+              "expr": "(kubelet_volume_stats_used_bytes / kubelet_volume_stats_capacity_bytes) * on(namespace, persistentvolumeclaim) group_left(storageclass, volumemode) kube_persistentvolumeclaim_info",
               "instant": true,
               "format": "table"
             }
@@ -794,28 +788,28 @@ data:
             "defaults": {},
             "overrides": [
               {
-                "matcher": { "id": "byName", "options": "Value #B" },
+                "matcher": { "id": "byName", "options": "Value #A" },
                 "properties": [
                   { "id": "displayName", "value": "Capacity" },
                   { "id": "unit", "value": "bytes" }
                 ]
               },
               {
-                "matcher": { "id": "byName", "options": "Value #C" },
+                "matcher": { "id": "byName", "options": "Value #B" },
                 "properties": [
                   { "id": "displayName", "value": "Used" },
                   { "id": "unit", "value": "bytes" }
                 ]
               },
               {
-                "matcher": { "id": "byName", "options": "Value #D" },
+                "matcher": { "id": "byName", "options": "Value #C" },
                 "properties": [
                   { "id": "displayName", "value": "Available" },
                   { "id": "unit", "value": "bytes" }
                 ]
               },
               {
-                "matcher": { "id": "byName", "options": "Value #E" },
+                "matcher": { "id": "byName", "options": "Value #D" },
                 "properties": [
                   { "id": "displayName", "value": "Usage %" },
                   { "id": "unit", "value": "percentunit" },
@@ -845,9 +839,7 @@ data:
               "options": {
                 "excludeByName": {
                   "Time": true,
-                  "Value #A": true,
                   "__name__": true,
-                  "app": true,
                   "container": true,
                   "endpoint": true,
                   "instance": true,
@@ -862,19 +854,21 @@ data:
                   "namespace": "Namespace",
                   "persistentvolumeclaim": "PVC",
                   "storageclass": "Storage Class",
-                  "Value #B": "Capacity",
-                  "Value #C": "Used",
-                  "Value #D": "Available",
-                  "Value #E": "Usage %"
+                  "volumemode": "Volume Mode",
+                  "Value #A": "Capacity",
+                  "Value #B": "Used",
+                  "Value #C": "Available",
+                  "Value #D": "Usage %"
                 },
                 "indexByName": {
                   "namespace": 0,
                   "persistentvolumeclaim": 1,
                   "storageclass": 2,
-                  "Value #B": 3,
-                  "Value #C": 4,
-                  "Value #D": 5,
-                  "Value #E": 6
+                  "Value #A": 3,
+                  "Value #B": 4,
+                  "Value #C": 5,
+                  "Value #D": 6,
+                  "volumemode": 7
                 }
               }
             }
