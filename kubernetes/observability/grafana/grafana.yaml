@@ -153,7 +153,10 @@ data:
   # Scraparr uses ${datasource} template variable — no overrides needed.
   # NZBGet dashboard hardcodes ${DS_PROMETHEUS} from __inputs
   nzbget: |
-    ${DS_PROMETHEUS}=prometheus
+    ${DS_PROMETHEUS}=prometheus-watchtower
+  # Traefik dashboard hardcodes ${DS_PROMETHEUS} from __inputs
+  traefik: |
+    ${DS_PROMETHEUS}=prometheus-watchtower
 ---
 # jq patches for external dashboards. Each key must match a dashboard name
 # from the registry. Values are jq filter expressions applied to the JSON
