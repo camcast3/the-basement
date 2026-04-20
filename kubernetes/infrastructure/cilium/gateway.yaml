@@ -4,7 +4,7 @@
 # cert-manager auto-provisions TLS via the annotation + Gateway API integration.
 ---
 # Cilium LB IPAM pool — replaces MetalLB for LoadBalancer IP assignment
-apiVersion: cilium.io/v2alpha1
+apiVersion: cilium.io/v2
 kind: CiliumLoadBalancerIPPool
 metadata:
   name: homelab-pool
