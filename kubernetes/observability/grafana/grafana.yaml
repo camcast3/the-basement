@@ -211,6 +211,9 @@ spec:
       initContainers:
         - name: fetch-external-dashboards
           image: alpine:3.21
+          securityContext:
+            runAsUser: 0
+            runAsNonRoot: false
           command:
             - /bin/sh
             - -c
@@ -239,6 +242,8 @@ spec:
                   echo "OK: ${name}"
                 fi
               done
+              # Ensure Grafana (uid 472) can read the downloaded dashboards
+              chmod -R 644 /dashboards/*.json 2>/dev/null || true
           volumeMounts:
             - name: dashboard-registry
               mountPath: /registry
