@@ -104,7 +104,7 @@ data:
           foldersFromFilesStructure: false
       - name: external
         orgId: 1
-        folder: 'Scraparr'
+        folder: 'External'
         type: file
         disableDeletion: false
         editable: false
