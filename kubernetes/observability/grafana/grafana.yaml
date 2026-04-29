@@ -132,7 +132,7 @@ data:
   # frebib/nzbget-exporter — pinned to commit (no releases/tags)
   nzbget: "https://raw.githubusercontent.com/frebib/nzbget-exporter/3f31fa1e8c3728a0952de8b4541f9d20b5342ce6/grafana/nzbget-1728694158729.json"
   # traefik/traefik v3.6.13 — standalone (Docker) dashboard
-  traefik: "https://raw.githubusercontent.com/traefik/traefik/v3.6.13/contrib/grafana/traefik.json"
+  traefik: "https://raw.githubusercontent.com/traefik/traefik/v3.6.15/contrib/grafana/traefik.json"
   # timothystewart6/plex-monitoring-stack — pinned to commit 5de53e4
   plex: "https://raw.githubusercontent.com/timothystewart6/plex-monitoring-stack/5de53e45ec10956f179a027c3d9279c82fdd529c/grafana/provisioning/dashboards/plex.json"
   plex-streaming: "https://raw.githubusercontent.com/timothystewart6/plex-monitoring-stack/5de53e45ec10956f179a027c3d9279c82fdd529c/grafana/provisioning/dashboards/plex-streaming.json"
