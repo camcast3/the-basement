@@ -25,7 +25,7 @@
   connection: local
   gather_facts: false
   vars:
-    argocd_version: "v3.3.7"
+    argocd_version: "v3.3.9"
     argocd_namespace: "argocd"
     kubeconfig: "{{ lookup('env', 'KUBECONFIG') | default('~/.kube/config', true) }}"
     repo_root: "{{ playbook_dir }}/../../"
