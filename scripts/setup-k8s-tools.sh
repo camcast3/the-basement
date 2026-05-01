@@ -137,13 +137,18 @@ ok "cilium repo ready"
 
 # --- kubeconfig (optional) ---------------------------------------------------
 if [[ "${1:-}" == "--with-kubeconfig" ]]; then
-  info "Fetching kubeconfig from Omni VM (${OMNI_VM})"
-  mkdir -p "${HOME}/.kube"
-  if scp -o ConnectTimeout=5 "${OMNI_VM}:~/.kube/config" "${HOME}/.kube/config" 2>/dev/null; then
-    ok "kubeconfig saved to ~/.kube/config"
+  SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+  if [[ -x "${SCRIPT_DIR}/get-kubeconfig.sh" ]]; then
+    "${SCRIPT_DIR}/get-kubeconfig.sh" --force
   else
-    warn "Could not reach ${OMNI_VM} — copy manually:"
-    echo "    scp ${OMNI_VM}:~/.kube/config ~/.kube/config"
+    info "Fetching kubeconfig via omnictl"
+    mkdir -p "${HOME}/.kube"
+    omnictl config url "https://${OMNI_DOMAIN}" 2>/dev/null || true
+    if omnictl kubeconfig -c k8s-homelab --force "${HOME}/.kube/config" 2>/dev/null; then
+      ok "kubeconfig saved to ~/.kube/config"
+    else
+      warn "Could not fetch kubeconfig — run: ./scripts/get-kubeconfig.sh"
+    fi
   fi
 fi
 
@@ -164,6 +169,6 @@ echo ""
 
 if [[ ! -f "${HOME}/.kube/config" ]]; then
   echo "Next: pull your kubeconfig"
-  echo "  scp ${OMNI_VM}:~/.kube/config ~/.kube/config"
+  echo "  ./scripts/get-kubeconfig.sh"
   echo ""
 fi
