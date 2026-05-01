@@ -262,7 +262,7 @@ spec:
         runAsNonRoot: true
       initContainers:
         - name: fetch-external-dashboards
-          image: alpine:3.21
+          image: alpine:3.23
           securityContext:
             runAsUser: 0
             runAsNonRoot: false
