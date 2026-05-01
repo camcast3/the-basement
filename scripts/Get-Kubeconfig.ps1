@@ -41,10 +41,16 @@ function Write-Info  { param($msg) Write-Host "==> $msg" -ForegroundColor Blue }
 function Write-Ok    { param($msg) Write-Host " ✓  $msg" -ForegroundColor Green }
 function Write-Err   { param($msg) Write-Host " ✗  $msg" -ForegroundColor Red }
 
-# --- Ensure omnictl is in PATH -----------------------------------------------
+# --- Ensure ~/.local/bin is in PATH (for omnictl and kubectl plugins) --------
 $localBin = Join-Path $env:USERPROFILE ".local\bin"
 if ($env:PATH -notlike "*$localBin*") {
     $env:PATH = "$localBin;$env:PATH"
+}
+# Persist to user PATH if not already there
+$userPath = [Environment]::GetEnvironmentVariable("PATH", "User")
+if ($userPath -and $userPath -notlike "*$localBin*") {
+    [Environment]::SetEnvironmentVariable("PATH", "$localBin;$userPath", "User")
+    Write-Info "Added $localBin to user PATH (restart terminal for other sessions)"
 }
 
 $omnictl = Get-Command omnictl -ErrorAction SilentlyContinue
