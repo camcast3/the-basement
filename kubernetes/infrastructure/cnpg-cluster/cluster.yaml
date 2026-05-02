@@ -1,0 +1,35 @@
+# Shared CNPG PostgreSQL cluster
+#
+# Single 3-instance cluster shared across multiple apps.
+# Each app gets its own database and role (added via separate manifests).
+
+apiVersion: postgresql.cnpg.io/v1
+kind: Cluster
+metadata:
+  name: shared-pg
+  namespace: databases
+spec:
+  instances: 3
+
+  postgresql:
+    parameters:
+      shared_buffers: "256MB"
+      max_connections: "200"
+      effective_cache_size: "512MB"
+      work_mem: "8MB"
+
+  enableSuperuserAccess: true
+  superuserSecret:
+    name: cnpg-superuser
+
+  resources:
+    requests:
+      cpu: "1"
+      memory: 1Gi
+    limits:
+      cpu: "1"
+      memory: 1Gi
+
+  storage:
+    storageClass: ceph-rbd
+    size: 10Gi
