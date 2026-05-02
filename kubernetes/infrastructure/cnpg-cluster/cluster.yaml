@@ -13,10 +13,10 @@ spec:
 
   postgresql:
     parameters:
-      shared_buffers: "256MB"
+      shared_buffers: "512MB"
       max_connections: "200"
-      effective_cache_size: "512MB"
-      work_mem: "8MB"
+      effective_cache_size: "1GB"
+      work_mem: "16MB"
 
   enableSuperuserAccess: true
   superuserSecret:
@@ -25,10 +25,10 @@ spec:
   resources:
     requests:
       cpu: "1"
-      memory: 1Gi
+      memory: 2Gi
     limits:
       cpu: "1"
-      memory: 1Gi
+      memory: 2Gi
 
   storage:
     storageClass: ceph-rbd
