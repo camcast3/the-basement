@@ -16,6 +16,6 @@ spec:
         - alias: server
           imageName: ghcr.io/camcast3/walkthrough-server
           commonUpdateSettings:
-            updateStrategy: newest-build
+            updateStrategy: semver
       writeBackConfig:
         method: argocd
