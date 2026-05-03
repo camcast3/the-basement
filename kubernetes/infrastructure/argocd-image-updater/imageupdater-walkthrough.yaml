@@ -1,0 +1,21 @@
+# ImageUpdater CR — watches ghcr.io/camcast3/walkthrough-server for new images
+# and updates the walkthrough-app ArgoCD Application via parameter override.
+#
+# Uses "newest-build" strategy since the walkthrough app tags images with
+# commit SHAs (not semver), sorted by image creation timestamp.
+
+apiVersion: argocd-image-updater.argoproj.io/v1alpha1
+kind: ImageUpdater
+metadata:
+  name: walkthrough-server
+  namespace: argocd
+spec:
+  applicationRefs:
+    - namePattern: walkthrough-app
+      images:
+        - alias: server
+          imageName: ghcr.io/camcast3/walkthrough-server
+          commonUpdateSettings:
+            updateStrategy: newest-build
+      writeBackConfig:
+        method: argocd
