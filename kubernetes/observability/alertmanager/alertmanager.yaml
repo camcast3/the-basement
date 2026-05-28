@@ -102,7 +102,7 @@ spec:
         runAsUser: 65534
       containers:
         - name: alertmanager
-          image: quay.io/prometheus/alertmanager:v0.32.0
+          image: quay.io/prometheus/alertmanager:v0.32.1
           args:
             - --config.file=/etc/alertmanager/alertmanager.yml
             - --storage.path=/alertmanager
