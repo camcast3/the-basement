@@ -10,7 +10,7 @@ spec:
   sources:
     - repoURL: https://kubernetes-sigs.github.io/descheduler
       chart: descheduler
-      targetRevision: 0.35.1
+      targetRevision: 0.36.0
       helm:
         valueFiles:
           - $values/kubernetes/infrastructure/descheduler/values.yaml
