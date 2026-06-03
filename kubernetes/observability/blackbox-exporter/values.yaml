@@ -1,0 +1,41 @@
+# prometheus-blackbox-exporter Helm values
+# Chart: prometheus-community/prometheus-blackbox-exporter
+# Install (manual):
+#   helm repo add prometheus-community https://prometheus-community.github.io/helm-charts
+#   helm repo update
+#   helm install blackbox-exporter prometheus-community/prometheus-blackbox-exporter \
+#     --namespace monitoring --create-namespace \
+#     -f values.yaml
+
+# This phase only installs the exporter + probe modules.
+# Probe targets/scrape jobs are added separately.
+
+config:
+  modules:
+    tcp_connect:
+      prober: tcp
+      timeout: 5s
+    dns:
+      prober: dns
+      timeout: 5s
+      dns:
+        query_name: mc.negativezone.cc
+        query_type: A
+    http_2xx:
+      prober: http
+      timeout: 5s
+
+resources:
+  requests:
+    cpu: 10m
+    memory: 32Mi
+  limits:
+    memory: 64Mi
+
+# This cluster's Prometheus is currently managed via static scrape configs,
+# so we keep CRD-based monitor objects disabled here.
+serviceMonitor:
+  enabled: false
+
+prometheusRule:
+  enabled: false
