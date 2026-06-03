@@ -17,15 +17,14 @@
 #        --from-literal=client-secret=<CLIENT_SECRET> \
 #        -n tailscale
 
-# OAuth credentials — synced from Infisical via InfisicalSecret CR
-# The secret "tailscale-oauth" is managed by infisical-secret.yaml
+# OAuth credentials — synced from Infisical via InfisicalSecret CR.
+# This chart does NOT support an `existingSecret` option: the operator always
+# mounts a Secret named `operator-oauth` (keys `client_id` and `client_secret`)
+# as a volume at /oauth. Leaving clientId/clientSecret empty tells the chart to
+# expect that Secret to be precreated — here it is produced by infisical-secret.yaml.
 oauth:
   clientId: ""
   clientSecret: ""
-  # Reference the Infisical-managed secret
-  existingSecret: tailscale-oauth
-  clientIdKey: client-id
-  clientSecretKey: client-secret
 
 # Operator pod resources
 operatorConfig:
