@@ -17,10 +17,15 @@
 #        --from-literal=client-secret=<CLIENT_SECRET> \
 #        -n tailscale
 
-# OAuth credentials — referenced from pre-created secret
+# OAuth credentials — synced from Infisical via InfisicalSecret CR
+# The secret "tailscale-oauth" is managed by infisical-secret.yaml
 oauth:
   clientId: ""
   clientSecret: ""
+  # Reference the Infisical-managed secret
+  existingSecret: tailscale-oauth
+  clientIdKey: client-id
+  clientSecretKey: client-secret
 
 # Operator pod resources
 operatorConfig:

@@ -12,7 +12,7 @@ spec:
     targetRevision: main
     path: kubernetes/infrastructure/tailscale-operator
     directory:
-      include: '{egress-*.yaml,ingress-*.yaml}'
+      include: '{egress-*.yaml,ingress-*.yaml,infisical-secret.yaml}'
   destination:
     server: https://kubernetes.default.svc
     namespace: tailscale

@@ -42,15 +42,13 @@ In [Tailscale Admin Console](https://login.tailscale.com/admin/settings/oauth):
 - Name: `k8s-operator`
 - Scopes: `devices:write`, `auth_keys:write`
 
-### 2. Create Secret
+### 2. Add Secrets to Infisical
 
-```bash
-kubectl create namespace tailscale
-kubectl create secret generic tailscale-oauth \
-  --from-literal=client-id=<CLIENT_ID> \
-  --from-literal=client-secret=<CLIENT_SECRET> \
-  -n tailscale
-```
+In Infisical project `k8s-homelab` → Environment: `prod` → Path: `/tailscale`:
+- `TS_OAUTH_CLIENT_ID` — OAuth client ID from step 1
+- `TS_OAUTH_CLIENT_SECRET` — OAuth client secret from step 1
+
+The `InfisicalSecret` CR syncs these into the `tailscale-oauth` K8s Secret automatically.
 
 ### 3. Verify
 
