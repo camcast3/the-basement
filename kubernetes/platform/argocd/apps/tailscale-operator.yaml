@@ -21,6 +21,14 @@ spec:
     server: https://kubernetes.default.svc
     namespace: tailscale
   syncPolicy:
+    managedNamespaceMetadata:
+      labels:
+        # Tailscale proxy pods (sysctler/tailscale containers) run privileged, so the
+        # namespace must allow it. Without this the cluster-default PodSecurity level
+        # (baseline) rejects the operator-created proxy StatefulSet pods.
+        pod-security.kubernetes.io/enforce: privileged
+        pod-security.kubernetes.io/warn: privileged
+        pod-security.kubernetes.io/audit: privileged
     automated:
       prune: true
       selfHeal: true
