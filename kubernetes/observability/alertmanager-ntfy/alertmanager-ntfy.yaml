@@ -1,0 +1,109 @@
+# alertmanager-ntfy — webhook relay for Alertmanager → local ntfy
+# Image: ghcr.io/alexbakker/alertmanager-ntfy:latest
+# Docs: https://github.com/alexbakker/alertmanager-ntfy
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: alertmanager-ntfy-config
+  namespace: monitoring
+data:
+  config.yml: |
+    http:
+      addr: :8000
+    ntfy:
+      baseurl: https://ntfy.local.negativezone.cc
+      notification:
+        topic: |
+          labels["severity"] == "critical" ? "alerts-critical" : (labels["severity"] == "warning" ? "alerts-warning" : "alerts-info")
+        priority: |
+          labels["severity"] == "critical" ? "urgent" : (labels["severity"] == "warning" ? "high" : "default")
+        tags:
+          - tag: rotating_light
+            condition: status == "firing" && labels["severity"] == "critical"
+          - tag: warning
+            condition: status == "firing" && labels["severity"] == "warning"
+          - tag: information_source
+            condition: status == "firing" && labels["severity"] == "info"
+          - tag: white_check_mark
+            condition: status == "resolved"
+        templates:
+          title: |
+            {{ if eq .Status "resolved" }}✅ Resolved: {{ else }}🔥 {{ end }}{{ .Labels.alertname }}
+          description: |
+            {{ if index .Annotations "summary" }}{{ index .Annotations "summary" }}{{ end }}
+            {{ if index .Annotations "description" }}{{ index .Annotations "description" }}{{ end }}
+            Namespace: {{ .Labels.namespace }}
+            Severity: {{ .Labels.severity }}
+      async: false
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: alertmanager-ntfy
+  namespace: monitoring
+  labels:
+    app.kubernetes.io/name: alertmanager-ntfy
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: alertmanager-ntfy
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: alertmanager-ntfy
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65534
+        fsGroup: 65534
+      containers:
+        - name: alertmanager-ntfy
+          image: ghcr.io/alexbakker/alertmanager-ntfy:latest
+          args:
+            - --configs
+            - /etc/alertmanager-ntfy/config.yml
+          ports:
+            - name: http
+              containerPort: 8000
+          resources:
+            requests:
+              cpu: 10m
+              memory: 16Mi
+            limits:
+              memory: 32Mi
+          volumeMounts:
+            - name: config
+              mountPath: /etc/alertmanager-ntfy
+              readOnly: true
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: http
+            initialDelaySeconds: 5
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: http
+            initialDelaySeconds: 10
+      volumes:
+        - name: config
+          configMap:
+            name: alertmanager-ntfy-config
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: alertmanager-ntfy
+  namespace: monitoring
+  labels:
+    app.kubernetes.io/name: alertmanager-ntfy
+spec:
+  type: ClusterIP
+  ports:
+    - name: http
+      port: 8000
+      targetPort: http
+  selector:
+    app.kubernetes.io/name: alertmanager-ntfy
