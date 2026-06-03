@@ -177,6 +177,44 @@ data:
           - source_labels: [__meta_kubernetes_service_name]
             target_label: service
 
+      # Minecraft Lobby VM (Azure) — via Tailscale egress proxy
+      - job_name: minecraft-lobby
+        static_configs:
+          - targets:
+              - ts-lobby-proxy.tailscale.svc:9100
+            labels:
+              instance: mc-lobby
+              job_type: node-exporter
+          - targets:
+              - ts-lobby-proxy.tailscale.svc:8080
+            labels:
+              instance: mc-lobby
+              job_type: mc-monitor
+          - targets:
+              - ts-lobby-proxy.tailscale.svc:4567
+            labels:
+              instance: mc-lobby
+              job_type: spark
+
+      # Minecraft C2E2 VM (Proxmox) — via Tailscale egress proxy
+      - job_name: minecraft-c2e2
+        static_configs:
+          - targets:
+              - ts-c2e2-proxy.tailscale.svc:9100
+            labels:
+              instance: mc-c2e2
+              job_type: node-exporter
+          - targets:
+              - ts-c2e2-proxy.tailscale.svc:8080
+            labels:
+              instance: mc-c2e2
+              job_type: mc-monitor
+          - targets:
+              - ts-c2e2-proxy.tailscale.svc:4567
+            labels:
+              instance: mc-c2e2
+              job_type: spark
+
       # Ceph exporter on Proxmox (external)
       - job_name: ceph
         static_configs:

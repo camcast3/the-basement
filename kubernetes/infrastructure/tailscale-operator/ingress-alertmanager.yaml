@@ -1,0 +1,50 @@
+# Tailscale ingress proxy — Alertmanager
+# Exposes Alertmanager onto the tailnet so Minecraft VMs can POST
+# silence webhooks on graceful shutdown without public port exposure.
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: ts-alertmanager-ingress
+  namespace: tailscale
+  labels:
+    app.kubernetes.io/name: ts-alertmanager-ingress
+    app.kubernetes.io/part-of: minecraft-monitoring
+  annotations:
+    tailscale.com/expose: "true"
+    tailscale.com/hostname: "alertmanager-k8s"
+spec:
+  type: LoadBalancer
+  loadBalancerClass: tailscale
+  ports:
+    - name: http
+      port: 9093
+      targetPort: 9093
+      protocol: TCP
+  selector:
+    app.kubernetes.io/name: alertmanager
+---
+# Note: The selector above points to the alertmanager pods in the monitoring
+# namespace. Since cross-namespace selectors aren't supported natively, deploy
+# an ExternalName service or use the Tailscale operator's built-in backend
+# routing. The operator handles forwarding to the correct endpoint.
+#
+# Alternative approach if cross-namespace routing is needed:
+# Use a headless service + EndpointSlice pointing to alertmanager.monitoring.svc
+apiVersion: discovery.k8s.io/v1
+kind: EndpointSlice
+metadata:
+  name: ts-alertmanager-ingress
+  namespace: tailscale
+  labels:
+    kubernetes.io/service-name: ts-alertmanager-ingress
+addressType: FQDN
+endpoints:
+  - addresses:
+      - "alertmanager.monitoring.svc.cluster.local"
+    conditions:
+      ready: true
+ports:
+  - name: http
+    port: 9093
+    protocol: TCP

@@ -1,0 +1,48 @@
+# Tailscale Kubernetes Operator — Helm values
+# Chart: tailscale/tailscale-operator
+# Repo: https://pkgs.tailscale.com/helmcharts
+# Install:
+#   helm repo add tailscale https://pkgs.tailscale.com/helmcharts
+#   helm upgrade --install tailscale-operator tailscale/tailscale-operator \
+#     -n tailscale --create-namespace -f values.yaml
+#
+# Prerequisites:
+#   1. Create OAuth client in Tailscale Admin Console → Settings → OAuth
+#      - Name: k8s-operator
+#      - Scopes: devices (write), auth_keys (write)
+#   2. Create the namespace and secret:
+#      kubectl create namespace tailscale
+#      kubectl create secret generic tailscale-oauth \
+#        --from-literal=client-id=<CLIENT_ID> \
+#        --from-literal=client-secret=<CLIENT_SECRET> \
+#        -n tailscale
+
+# OAuth credentials — synced from Infisical via InfisicalSecret CR
+# The secret "tailscale-oauth" is managed by infisical-secret.yaml
+oauth:
+  clientId: ""
+  clientSecret: ""
+  # Reference the Infisical-managed secret
+  existingSecret: tailscale-oauth
+  clientIdKey: client-id
+  clientSecretKey: client-secret
+
+# Operator pod resources
+operatorConfig:
+  resources:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+    limits:
+      memory: 256Mi
+
+# Proxy defaults for egress/ingress pods
+proxyConfig:
+  defaultTags:
+    - "tag:k8s"
+  resources:
+    requests:
+      cpu: 50m
+      memory: 64Mi
+    limits:
+      memory: 128Mi
