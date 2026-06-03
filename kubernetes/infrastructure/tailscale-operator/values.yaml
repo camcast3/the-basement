@@ -38,8 +38,10 @@ operatorConfig:
 
 # Proxy defaults for egress/ingress pods
 proxyConfig:
-  defaultTags:
-    - "tag:k8s"
+  # Comma-separated string (NOT a list). The chart renders this directly into the
+  # operator Deployment's PROXY_TAGS env var, which must be a string. Passing a YAML
+  # list produces value: [tag:k8s], which the Kubernetes API rejects.
+  defaultTags: "tag:k8s"
   resources:
     requests:
       cpu: 50m
