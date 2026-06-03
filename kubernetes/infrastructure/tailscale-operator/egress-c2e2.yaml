@@ -1,0 +1,39 @@
+# Tailscale egress proxy — Craft to Exile 2 (Proxmox VM)
+# Bridges in-cluster services to the Proxmox VM's Tailscale IP.
+# Prometheus scrapes these ClusterIP services; the operator forwards
+# traffic over Tailscale to the actual VM exporters.
+#
+# Ports exposed:
+#   9100 — node-exporter
+#   8080 — mc-monitor / cAdvisor
+#   4567 — Spark
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: ts-c2e2-proxy
+  namespace: tailscale
+  labels:
+    app.kubernetes.io/name: ts-c2e2-proxy
+    app.kubernetes.io/part-of: minecraft-monitoring
+  annotations:
+    # Tailscale operator annotation: route traffic to this tailnet FQDN
+    tailscale.com/tailnet-fqdn: "mc-c2e2"
+    prometheus.io/scrape: "true"
+    prometheus.io/port: "9100"
+spec:
+  type: ExternalName
+  externalName: placeholder.tailscale.svc.cluster.local
+  ports:
+    - name: node-exporter
+      port: 9100
+      targetPort: 9100
+      protocol: TCP
+    - name: mc-monitor
+      port: 8080
+      targetPort: 8080
+      protocol: TCP
+    - name: spark
+      port: 4567
+      targetPort: 4567
+      protocol: TCP
