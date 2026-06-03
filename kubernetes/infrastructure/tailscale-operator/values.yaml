@@ -26,8 +26,14 @@ oauth:
   clientId: ""
   clientSecret: ""
 
-# Operator pod resources
+# Operator pod resources and identity
 operatorConfig:
+  # Tags applied to the operator's own node (rendered into OPERATOR_INITIAL_TAGS as
+  # a comma-separated string). This is a YAML list. The OAuth client used to bootstrap
+  # the operator must be a tagOwner of these tags in the tailnet ACL, otherwise the
+  # operator gets a 403 when minting its auth key.
+  defaultTags:
+    - "tag:k8s-home"
   resources:
     requests:
       cpu: 100m
@@ -39,8 +45,9 @@ operatorConfig:
 proxyConfig:
   # Comma-separated string (NOT a list). The chart renders this directly into the
   # operator Deployment's PROXY_TAGS env var, which must be a string. Passing a YAML
-  # list produces value: [tag:k8s], which the Kubernetes API rejects.
-  defaultTags: "tag:k8s"
+  # list produces value: [tag:k8s], which the Kubernetes API rejects. The OAuth client
+  # must also own this tag so the operator can tag the proxy devices it creates.
+  defaultTags: "tag:k8s-home"
   resources:
     requests:
       cpu: 50m
