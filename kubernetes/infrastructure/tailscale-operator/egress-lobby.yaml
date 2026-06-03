@@ -4,9 +4,10 @@
 # traffic over Tailscale to the actual VM exporters.
 #
 # Ports exposed:
-#   9100 — node-exporter
-#   8080 — mc-monitor / cAdvisor
-#   4567 — Spark
+#   9100  — node-exporter
+#   8080  — mc-monitor / cAdvisor
+#   9985  — bungeecord-prometheus-exporter (weihao/bungeecord-prometheus-exporter)
+#   19565 — minecraft-prometheus-exporter (cpburnz/minecraft-prometheus-exporter)
 ---
 apiVersion: v1
 kind: Service
@@ -37,7 +38,11 @@ spec:
       port: 8080
       targetPort: 8080
       protocol: TCP
-    - name: spark
-      port: 4567
-      targetPort: 4567
+    - name: bungeecord-exporter
+      port: 9985
+      targetPort: 9985
+      protocol: TCP
+    - name: minecraft-exporter
+      port: 19565
+      targetPort: 19565
       protocol: TCP
