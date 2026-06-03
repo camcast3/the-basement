@@ -16,10 +16,28 @@ spec:
   destination:
     server: https://kubernetes.default.svc
     namespace: tailscale
+  # The tailscale operator mutates these resources after creation:
+  #   - egress Services: rewrites .spec.externalName from the placeholder to the
+  #     in-cluster DNS name of the operator-managed proxy Service.
+  #   - InfisicalSecret: the K8s API server defaults .spec.managedKubeSecretReferences[].secretType
+  #     to "Opaque", which the InfisicalSecret CR did not declare.
+  # Without ignoreDifferences, selfHeal would flap these fields back to the git value
+  # and break the proxies.
+  ignoreDifferences:
+    - group: ""
+      kind: Service
+      jsonPointers:
+        - /spec/externalName
+    - group: secrets.infisical.com
+      kind: InfisicalSecret
+      jsonPointers:
+        - /spec/managedKubeSecretReferences/0/secretType
   syncPolicy:
     automated:
       prune: true
       selfHeal: true
+    # Do not set ServerSideApply=true here: the tailscale operator Helm chart's
+    # Deployment hits an ArgoCD typed-patch bug under SSA (see PR #35). Keep this
+    # app on client-side apply for consistency with the operator app.
     syncOptions:
       - CreateNamespace=true
-      - ServerSideApply=true
