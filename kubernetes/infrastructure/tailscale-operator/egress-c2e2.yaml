@@ -17,8 +17,11 @@ metadata:
     app.kubernetes.io/name: ts-c2e2-proxy
     app.kubernetes.io/part-of: minecraft-monitoring
   annotations:
-    # Tailscale operator annotation: route traffic to this tailnet FQDN
-    tailscale.com/tailnet-fqdn: "mc-c2e2"
+    # Tailscale operator annotation: route traffic to this tailnet FQDN.
+    # Must be a fully-qualified MagicDNS name (host.<tailnet>.ts.net), not a
+    # bare hostname — the operator rejects bare names with "does not appear to
+    # be a valid MagicDNS name". Tailnet device: mc-proxmox.
+    tailscale.com/tailnet-fqdn: "mc-proxmox.tail042ec7.ts.net"
     prometheus.io/scrape: "true"
     prometheus.io/port: "9100"
 spec:

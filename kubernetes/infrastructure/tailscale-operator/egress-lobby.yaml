@@ -17,8 +17,11 @@ metadata:
     app.kubernetes.io/name: ts-lobby-proxy
     app.kubernetes.io/part-of: minecraft-monitoring
   annotations:
-    # Tailscale operator annotation: route traffic to this tailnet FQDN
-    tailscale.com/tailnet-fqdn: "mc-lobby"
+    # Tailscale operator annotation: route traffic to this tailnet FQDN.
+    # Must be a fully-qualified MagicDNS name (host.<tailnet>.ts.net), not a
+    # bare hostname — the operator rejects bare names with "does not appear to
+    # be a valid MagicDNS name". Tailnet device: vm-minecraft-prod.
+    tailscale.com/tailnet-fqdn: "vm-minecraft-prod.tail042ec7.ts.net"
     prometheus.io/scrape: "true"
     prometheus.io/port: "9100"
 spec:
