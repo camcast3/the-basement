@@ -215,6 +215,58 @@ data:
               instance: mc-c2e2
               job_type: spark
 
+      # Blackbox exporter — synthetic probes (TCP / DNS / HTTP)
+      # Confirms the Minecraft port is listening on mc.negativezone.cc,
+      # plus DNS resolution and HTTP reachability checks.
+      - job_name: blackbox-mc-tcp
+        metrics_path: /probe
+        params:
+          module: [tcp_connect]
+        static_configs:
+          - targets:
+              - mc.negativezone.cc:25565
+            labels:
+              instance: mc.negativezone.cc
+              service: minecraft
+        relabel_configs:
+          - source_labels: [__address__]
+            target_label: __param_target
+          - source_labels: [__param_target]
+            target_label: target
+          - target_label: __address__
+            replacement: blackbox-exporter-prometheus-blackbox-exporter.monitoring.svc:9115
+
+      - job_name: blackbox-dns
+        metrics_path: /probe
+        params:
+          module: [dns]
+        static_configs:
+          - targets:
+              - 1.1.1.1
+              - 8.8.8.8
+        relabel_configs:
+          - source_labels: [__address__]
+            target_label: __param_target
+          - source_labels: [__param_target]
+            target_label: target
+          - target_label: __address__
+            replacement: blackbox-exporter-prometheus-blackbox-exporter.monitoring.svc:9115
+
+      - job_name: blackbox-http
+        metrics_path: /probe
+        params:
+          module: [http_2xx]
+        static_configs:
+          - targets:
+              - https://negativezone.cc
+        relabel_configs:
+          - source_labels: [__address__]
+            target_label: __param_target
+          - source_labels: [__param_target]
+            target_label: target
+          - target_label: __address__
+            replacement: blackbox-exporter-prometheus-blackbox-exporter.monitoring.svc:9115
+
       # Ceph exporter on Proxmox (external)
       - job_name: ceph
         static_configs:
