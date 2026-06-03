@@ -24,7 +24,17 @@ Alertmanager (in-cluster)
 | Egress proxy — c2e2 | Bridges to Proxmox VM |
 | Ingress proxy — Alertmanager | Exposes Alertmanager onto tailnet |
 
-## Setup
+## Deployment
+
+ArgoCD handles deployment automatically via two Applications
+(defined in `kubernetes/platform/argocd/apps/`):
+
+- **`tailscale-operator`** — installs the Helm chart using `values.yaml`
+- **`tailscale-proxies`** — applies the egress/ingress manifests
+
+Once merged to `main`, ArgoCD will sync both automatically.
+
+## One-Time Setup (manual)
 
 ### 1. Create OAuth Client
 
@@ -32,7 +42,7 @@ In [Tailscale Admin Console](https://login.tailscale.com/admin/settings/oauth):
 - Name: `k8s-operator`
 - Scopes: `devices:write`, `auth_keys:write`
 
-### 2. Create Namespace & Secret
+### 2. Create Secret
 
 ```bash
 kubectl create namespace tailscale
@@ -42,23 +52,7 @@ kubectl create secret generic tailscale-oauth \
   -n tailscale
 ```
 
-### 3. Install Operator
-
-```bash
-helm repo add tailscale https://pkgs.tailscale.com/helmcharts
-helm upgrade --install tailscale-operator tailscale/tailscale-operator \
-  -n tailscale --create-namespace -f values.yaml
-```
-
-### 4. Apply Egress/Ingress Manifests
-
-```bash
-kubectl apply -f egress-lobby.yaml
-kubectl apply -f egress-c2e2.yaml
-kubectl apply -f ingress-alertmanager.yaml
-```
-
-### 5. Verify
+### 3. Verify
 
 ```bash
 kubectl get pods -n tailscale
