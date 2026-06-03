@@ -37,25 +37,16 @@ data:
     receivers:
       - name: ntfy-critical
         webhook_configs:
-          - url: https://ntfy.local.negativezone.cc/critical
+          - url: http://alertmanager-ntfy.monitoring.svc.cluster.local:8000/hook
             send_resolved: true
-            http_config:
-              tls_config:
-                insecure_skip_verify: true
       - name: ntfy-warning
         webhook_configs:
-          - url: https://ntfy.local.negativezone.cc/warning
+          - url: http://alertmanager-ntfy.monitoring.svc.cluster.local:8000/hook
             send_resolved: true
-            http_config:
-              tls_config:
-                insecure_skip_verify: true
       - name: ntfy-info
         webhook_configs:
-          - url: https://ntfy.local.negativezone.cc/info
-            send_resolved: true
-            http_config:
-              tls_config:
-                insecure_skip_verify: true
+          - url: http://alertmanager-ntfy.monitoring.svc.cluster.local:8000/hook
+            send_resolved: false
       - name: "null"
 
     inhibit_rules:
