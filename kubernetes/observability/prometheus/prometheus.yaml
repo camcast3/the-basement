@@ -191,10 +191,15 @@ data:
               instance: mc-lobby
               job_type: mc-monitor
           - targets:
-              - ts-lobby-proxy.tailscale.svc:4567
+              - ts-lobby-proxy.tailscale.svc:9985
             labels:
               instance: mc-lobby
-              job_type: spark
+              job_type: bungeecord-exporter
+          - targets:
+              - ts-lobby-proxy.tailscale.svc:19565
+            labels:
+              instance: mc-lobby
+              job_type: minecraft-exporter
 
       # Minecraft C2E2 VM (Proxmox) — via Tailscale egress proxy
       - job_name: minecraft-c2e2
@@ -210,10 +215,15 @@ data:
               instance: mc-c2e2
               job_type: mc-monitor
           - targets:
-              - ts-c2e2-proxy.tailscale.svc:4567
+              - ts-c2e2-proxy.tailscale.svc:9985
             labels:
               instance: mc-c2e2
-              job_type: spark
+              job_type: bungeecord-exporter
+          - targets:
+              - ts-c2e2-proxy.tailscale.svc:19565
+            labels:
+              instance: mc-c2e2
+              job_type: minecraft-exporter
 
       # Blackbox exporter — synthetic probes (TCP / DNS / HTTP)
       # Confirms the Minecraft port is listening on mc.negativezone.cc,
