@@ -128,7 +128,6 @@ kubectl apply -f kubernetes/platform/argocd/root-app.yaml
 
 - [x] kube-prometheus-stack (Prometheus + Grafana)
 - [ ] Loki (log aggregation) — ⏳ blocked on StorageClass (Phase 5)
-- [x] Alloy (telemetry collector)
 - [ ] Grafana SSO login works (Authentik)
 
 ---
