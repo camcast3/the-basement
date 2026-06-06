@@ -15,11 +15,12 @@ Alertmanager (in-cluster)
   → Exposed on tailnet for VM graceful-shutdown silence webhooks
 
 Loki (in-cluster)
-  → ts-loki-ingress (LoadBalancer class: tailscale)
+  → ts-loki-ingress (LoadBalancer class: tailscale, monitoring ns)
   → Exposed on tailnet (loki-k8s.<tailnet>.ts.net:3100) for VM-side promtail
     log shipping from both the Azure (lobby) and Proxmox (C2E2) stacks.
-    Backend points at loki.monitoring.svc:3100 direct (not the loki-gateway
-    nginx — see follow-up to disable the gateway entirely).
+    Service lives in monitoring (same ns as the loki pod) so kube-proxy
+    auto-generates the endpoints via selector; targets the SingleBinary
+    loki pod direct (not the loki-gateway nginx — see issue #50).
 ```
 
 ## Pods (5 total, ~0.3 CPU, ~360Mi RAM)
