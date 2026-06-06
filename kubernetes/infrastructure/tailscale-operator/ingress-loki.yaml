@@ -3,27 +3,45 @@
 # (Proxmox C2E2 + Azure lobby) can ship logs without K8s DNS resolution
 # or public port exposure.
 #
-# Mirrors the ts-alertmanager-ingress pattern: a manually-managed
-# EndpointSlice handles the cross-namespace hop into the monitoring
-# namespace since Service selectors can't cross namespaces.
+# Namespace = monitoring (same as the loki SingleBinary pod) so the
+# selector below can resolve to real endpoints. The earlier attempt
+# used a manually-managed EndpointSlice in the tailscale namespace,
+# but ArgoCD's default resource.exclusions list drops
+# discovery.k8s.io/EndpointSlice, so the slice never landed and the
+# proxy black-holed traffic at the kube-proxy layer.
 #
-# Backend: loki.monitoring.svc:3100 — the SingleBinary Loki Service direct,
-# NOT the loki-gateway nginx sidecar. The bundled nginx adds no value with
-# auth_enabled: false + single-binary + no rate-limit/caching, and the
-# in-cluster clients (Alloy, OTel collector, Grafana, kube-prometheus-stack)
-# will be migrated off it in a follow-up so loki.gateway can be disabled
-# entirely.
+# Same-namespace selector → kube-proxy auto-generates the EndpointSlice
+# from the matching pod(s) (no manual slice needed, no ArgoCD exclusion
+# issue, no cross-namespace hop required).
+#
+# NOTE: the selector below is coupled to the loki Helm chart's
+# SingleBinary labels. If loki is upgraded to SimpleScalable /
+# Distributed mode (or the chart's selectorLabels change), update
+# the selector or this Service will silently lose its endpoints.
+# Verify after any loki upgrade with:
+#   kubectl get endpointslice -n monitoring \
+#     -l kubernetes.io/service-name=ts-loki-ingress -o wide
+#
+# Backend: the SingleBinary Loki pod direct, NOT the loki-gateway nginx
+# sidecar. The bundled nginx adds no value with auth_enabled: false
+# + single-binary + no rate-limit/caching; the in-cluster clients
+# (Alloy, OTel collector, Grafana, kube-prometheus-stack) will be
+# migrated off it in a follow-up so loki.gateway can be disabled
+# entirely (see issue #50).
+#
+# The Tailscale operator is cluster-scoped (ClusterRole grants
+# services + services/status across all namespaces) so it picks up
+# the tailscale.com/expose annotation regardless of namespace; the
+# proxy pod is still created in the operator's own (tailscale) ns.
 #
 # MinecraftInfra-side promtail clients must target:
 #   http://loki-k8s.<tailnet>.ts.net:3100/loki/api/v1/push
-# (currently set to the unresolvable http://mon-loki:3100/loki/api/v1/push
-# in both docker/proxmox/docker-compose.yml and docker/azure/docker-compose.yml.)
 ---
 apiVersion: v1
 kind: Service
 metadata:
   name: ts-loki-ingress
-  namespace: tailscale
+  namespace: monitoring
   labels:
     app.kubernetes.io/name: ts-loki-ingress
     app.kubernetes.io/part-of: minecraft-monitoring
@@ -33,29 +51,12 @@ metadata:
 spec:
   type: LoadBalancer
   loadBalancerClass: tailscale
+  selector:
+    app.kubernetes.io/name: loki
+    app.kubernetes.io/instance: loki
+    app.kubernetes.io/component: single-binary
   ports:
     - name: http
       port: 3100
-      targetPort: 3100
+      targetPort: http-metrics
       protocol: TCP
----
-# Cross-namespace backend: route the tailscale-namespace Service to
-# the SingleBinary loki Service in the monitoring namespace via a
-# manually-managed EndpointSlice (Service selectors don't cross namespaces).
-apiVersion: discovery.k8s.io/v1
-kind: EndpointSlice
-metadata:
-  name: ts-loki-ingress
-  namespace: tailscale
-  labels:
-    kubernetes.io/service-name: ts-loki-ingress
-addressType: FQDN
-endpoints:
-  - addresses:
-      - "loki.monitoring.svc.cluster.local"
-    conditions:
-      ready: true
-ports:
-  - name: http
-    port: 3100
-    protocol: TCP
