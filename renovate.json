@@ -27,7 +27,6 @@
       "matchPackagePatterns": [
         "^grafana/",
         "^quay\\.io/prometheus/",
-        "grafana/alloy",
         "grafana/loki"
       ]
     },

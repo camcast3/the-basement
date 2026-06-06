@@ -34,9 +34,7 @@ kubernetes/
 ├── observability/           # Monitoring stack
 │   ├── kube-prometheus-stack/
 │   │   └── values.yaml
-│   ├── loki/
-│   │   └── values.yaml
-│   └── alloy/
+│   └── loki/
 │       └── values.yaml
 └── apps/                    # Application workloads
 ```

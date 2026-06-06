@@ -13,7 +13,7 @@ spec:
     path: kubernetes/observability
     directory:
       recurse: true
-      exclude: '{alloy/*,blackbox-exporter/*,loki/*,kube-prometheus-stack/*}'
+      exclude: '{blackbox-exporter/*,loki/*,kube-prometheus-stack/*}'
   destination:
     server: https://kubernetes.default.svc
     namespace: monitoring
