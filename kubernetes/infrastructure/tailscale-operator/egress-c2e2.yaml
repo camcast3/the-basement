@@ -6,11 +6,15 @@
 # Ports exposed:
 #   9100  — node-exporter
 #   8080  — cadvisor
-#   8081  — mc-monitor (itzg/mc-monitor)
+#   8081  — mc-monitor (itzg/mc-monitor — SLP black-box prober)
 #   9080  — promtail (grafana/promtail)
+#   19565 — minecraft-prometheus-exporter (cpburnz, in-JVM Forge mod loaded
+#           via C2E2's MODS list — exposes TPS, tick histograms, entities,
+#           heap/GC. Listens inside the tailscale netns alongside the sidecars.)
 #
-# Note: C2E2 has no BungeeCord proxy and no separate minecraft-prometheus-exporter;
-# the bungeecord-exporter / minecraft-exporter sidecars live on the Azure (lobby) side.
+# Note: C2E2 has no BungeeCord proxy, so 9985 (bungeecord-prometheus-exporter)
+# is not exposed here — that exporter is a Velocity plugin and lives on the
+# Azure (lobby) side only.
 ---
 apiVersion: v1
 kind: Service
@@ -47,4 +51,8 @@ spec:
     - name: promtail
       port: 9080
       targetPort: 9080
+      protocol: TCP
+    - name: minecraft-exporter
+      port: 19565
+      targetPort: 19565
       protocol: TCP
