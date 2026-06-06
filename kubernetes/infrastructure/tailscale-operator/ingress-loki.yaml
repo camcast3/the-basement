@@ -1,0 +1,61 @@
+# Tailscale ingress proxy — Loki push API
+# Exposes Loki's HTTP API onto the tailnet so VM-side promtail
+# (Proxmox C2E2 + Azure lobby) can ship logs without K8s DNS resolution
+# or public port exposure.
+#
+# Mirrors the ts-alertmanager-ingress pattern: a manually-managed
+# EndpointSlice handles the cross-namespace hop into the monitoring
+# namespace since Service selectors can't cross namespaces.
+#
+# Backend: loki.monitoring.svc:3100 — the SingleBinary Loki Service direct,
+# NOT the loki-gateway nginx sidecar. The bundled nginx adds no value with
+# auth_enabled: false + single-binary + no rate-limit/caching, and the
+# in-cluster clients (Alloy, OTel collector, Grafana, kube-prometheus-stack)
+# will be migrated off it in a follow-up so loki.gateway can be disabled
+# entirely.
+#
+# MinecraftInfra-side promtail clients must target:
+#   http://loki-k8s.<tailnet>.ts.net:3100/loki/api/v1/push
+# (currently set to the unresolvable http://mon-loki:3100/loki/api/v1/push
+# in both docker/proxmox/docker-compose.yml and docker/azure/docker-compose.yml.)
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: ts-loki-ingress
+  namespace: tailscale
+  labels:
+    app.kubernetes.io/name: ts-loki-ingress
+    app.kubernetes.io/part-of: minecraft-monitoring
+  annotations:
+    tailscale.com/expose: "true"
+    tailscale.com/hostname: "loki-k8s"
+spec:
+  type: LoadBalancer
+  loadBalancerClass: tailscale
+  ports:
+    - name: http
+      port: 3100
+      targetPort: 3100
+      protocol: TCP
+---
+# Cross-namespace backend: route the tailscale-namespace Service to
+# the SingleBinary loki Service in the monitoring namespace via a
+# manually-managed EndpointSlice (Service selectors don't cross namespaces).
+apiVersion: discovery.k8s.io/v1
+kind: EndpointSlice
+metadata:
+  name: ts-loki-ingress
+  namespace: tailscale
+  labels:
+    kubernetes.io/service-name: ts-loki-ingress
+addressType: FQDN
+endpoints:
+  - addresses:
+      - "loki.monitoring.svc.cluster.local"
+    conditions:
+      ready: true
+ports:
+  - name: http
+    port: 3100
+    protocol: TCP

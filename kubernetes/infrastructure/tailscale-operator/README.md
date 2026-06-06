@@ -13,9 +13,16 @@ Prometheus (in-cluster)
 Alertmanager (in-cluster)
   → ts-alertmanager-ingress (LoadBalancer class: tailscale)
   → Exposed on tailnet for VM graceful-shutdown silence webhooks
+
+Loki (in-cluster)
+  → ts-loki-ingress (LoadBalancer class: tailscale)
+  → Exposed on tailnet (loki-k8s.<tailnet>.ts.net:3100) for VM-side promtail
+    log shipping from both the Azure (lobby) and Proxmox (C2E2) stacks.
+    Backend points at loki.monitoring.svc:3100 direct (not the loki-gateway
+    nginx — see follow-up to disable the gateway entirely).
 ```
 
-## Pods (4 total, ~0.25 CPU, ~320Mi RAM)
+## Pods (5 total, ~0.3 CPU, ~360Mi RAM)
 
 | Pod | Purpose |
 |-----|---------|
@@ -23,6 +30,7 @@ Alertmanager (in-cluster)
 | Egress proxy — lobby | Bridges to Azure VM |
 | Egress proxy — c2e2 | Bridges to Proxmox VM |
 | Ingress proxy — Alertmanager | Exposes Alertmanager onto tailnet |
+| Ingress proxy — Loki | Exposes Loki HTTP API onto tailnet |
 
 ## Deployment
 
@@ -79,3 +87,4 @@ tailscale status
 | `egress-lobby.yaml` | Egress proxy service for Azure VM (Lobby) |
 | `egress-c2e2.yaml` | Egress proxy service for Proxmox VM (C2E2) |
 | `ingress-alertmanager.yaml` | Ingress proxy exposing Alertmanager on tailnet |
+| `ingress-loki.yaml` | Ingress proxy exposing Loki HTTP API (port 3100) on tailnet for VM promtail |
