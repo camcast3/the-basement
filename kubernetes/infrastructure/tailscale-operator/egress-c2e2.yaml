@@ -5,9 +5,12 @@
 #
 # Ports exposed:
 #   9100  — node-exporter
-#   8080  — mc-monitor / cAdvisor
-#   9985  — bungeecord-prometheus-exporter (weihao/bungeecord-prometheus-exporter)
-#   19565 — minecraft-prometheus-exporter (cpburnz/minecraft-prometheus-exporter)
+#   8080  — cadvisor
+#   8081  — mc-monitor (itzg/mc-monitor)
+#   9080  — promtail (grafana/promtail)
+#
+# Note: C2E2 has no BungeeCord proxy and no separate minecraft-prometheus-exporter;
+# the bungeecord-exporter / minecraft-exporter sidecars live on the Azure (lobby) side.
 ---
 apiVersion: v1
 kind: Service
@@ -33,15 +36,15 @@ spec:
       port: 9100
       targetPort: 9100
       protocol: TCP
-    - name: mc-monitor
+    - name: cadvisor
       port: 8080
       targetPort: 8080
       protocol: TCP
-    - name: bungeecord-exporter
-      port: 9985
-      targetPort: 9985
+    - name: mc-monitor
+      port: 8081
+      targetPort: 8081
       protocol: TCP
-    - name: minecraft-exporter
-      port: 19565
-      targetPort: 19565
+    - name: promtail
+      port: 9080
+      targetPort: 9080
       protocol: TCP
