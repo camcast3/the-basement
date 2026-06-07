@@ -394,6 +394,10 @@ spec:
                   name: grafana-dashboards-logs
               - configMap:
                   name: grafana-dashboards-compute
+              - configMap:
+                  name: grafana-dashboards-host
+              - configMap:
+                  name: grafana-dashboards-minecraft
         - name: data
           persistentVolumeClaim:
             claimName: grafana-data

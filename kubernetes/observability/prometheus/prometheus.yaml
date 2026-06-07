@@ -234,6 +234,10 @@ data:
             labels:
               instance: mc-c2e2
               job_type: minecraft-exporter
+              # The cpburnz/randombk Grafana dashboard (16508) filters by
+              # an `application` label. Setting it here populates the
+              # $application dropdown so the dashboard has data.
+              application: minecraft-c2e2
 
       # Blackbox exporter — synthetic probes (TCP / DNS / HTTP)
       # Confirms the Minecraft port is listening on mc.negativezone.cc,
