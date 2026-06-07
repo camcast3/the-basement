@@ -497,3 +497,41 @@ data:
             annotations:
               summary: "ntfy notification service is down"
               description: "ntfy push notification service is unreachable."
+
+  minecraft-alerts.yml: |
+    groups:
+      - name: minecraft.warning
+        rules:
+          - alert: MinecraftLobbyExporterDown
+            expr: up{job="minecraft-lobby"} == 0
+            for: 10m
+            labels:
+              severity: warning
+            annotations:
+              summary: "Minecraft lobby exporter down ({{ $labels.job_type }})"
+              description: "{{ $labels.job_type }} on mc-lobby has been unreachable for 10 minutes."
+
+          - alert: MinecraftC2E2ExporterDown
+            expr: up{job="minecraft-c2e2"} == 0
+            for: 10m
+            labels:
+              severity: warning
+            annotations:
+              summary: "Minecraft C2E2 exporter down ({{ $labels.job_type }})"
+              description: "{{ $labels.job_type }} on mc-c2e2 has been unreachable for 10 minutes."
+
+      - name: minecraft.info
+        rules:
+          # BungeeCord exporter is split into its own scrape job because
+          # the Velocity-plugin endpoint times out via the Tailscale
+          # operator's userspace egress proxy. Severity is info (not
+          # warning) so extended outages are visible without paging on
+          # routine flakiness. Re-evaluate after issue #55 is resolved.
+          - alert: BungeecordExporterFlaky
+            expr: up{job="minecraft-lobby-bungeecord"} == 0
+            for: 30m
+            labels:
+              severity: info
+            annotations:
+              summary: "BungeeCord exporter unreachable for 30m"
+              description: "BungeeCord Prometheus exporter on mc-lobby has been unreachable for 30 minutes. Known-flaky target (see issue #55)."
