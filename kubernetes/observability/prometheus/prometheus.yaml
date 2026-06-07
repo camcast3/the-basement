@@ -200,6 +200,21 @@ data:
             labels:
               instance: mc-lobby
               job_type: promtail
+
+      # BungeeCord exporter — split into its own job with a longer
+      # scrape_timeout / interval and HTTP/2 disabled. The Velocity
+      # plugin endpoint (port 9985) times out at Prometheus's default
+      # 10s scrape timeout when reached via the Tailscale operator's
+      # userspace egress proxy, even though direct `curl` to the same
+      # ClusterIP returns in ~55ms. Isolating it keeps the main
+      # `minecraft-lobby` job's `up` signal meaningful while we
+      # root-cause the proxy ↔ plugin keep-alive interaction.
+      # Tracked in https://github.com/camcast3/the-basement/issues/55 .
+      - job_name: minecraft-lobby-bungeecord
+        scrape_interval: 60s
+        scrape_timeout: 30s
+        enable_http2: false
+        static_configs:
           - targets:
               - ts-lobby-proxy.tailscale.svc:9985
             labels:
