@@ -335,14 +335,18 @@ data:
               summary: "Grafana is down"
               description: "Grafana has been unreachable for 5 minutes."
 
+          # The job label is `monitoring/loki` because the loki chart's ServiceMonitor
+          # prefixes it with the namespace (see loki/values.yaml `monitoring.serviceMonitor`).
+          # `absent()` catches the case where the ServiceMonitor disappears entirely;
+          # `up == 0` catches the case where the target exists but scraping fails.
           - alert: LokiDown
-            expr: up{job=~"loki.*"} == 0
+            expr: absent(up{job="monitoring/loki"}) or up{job="monitoring/loki"} == 0
             for: 5m
             labels:
               severity: warning
             annotations:
               summary: "Loki is down"
-              description: "Loki has been unreachable for 5 minutes."
+              description: "Loki has been unreachable for 5 minutes (or its scrape target is missing)."
 
       - name: platform.info
         rules:
