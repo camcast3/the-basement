@@ -114,6 +114,16 @@ data:
         options:
           path: /var/lib/grafana/dashboards-external
           foldersFromFilesStructure: false
+      - name: minecraft
+        orgId: 1
+        folder: 'Minecraft'
+        type: file
+        disableDeletion: false
+        editable: true
+        allowUiUpdates: true
+        options:
+          path: /var/lib/grafana/dashboards-minecraft
+          foldersFromFilesStructure: false
 ---
 # External dashboard registry — add entries to fetch upstream dashboards at
 # pinned versions. Each key is the output filename (without .json), and the
@@ -342,6 +352,8 @@ spec:
               mountPath: /var/lib/grafana/dashboards
             - name: dashboards-external
               mountPath: /var/lib/grafana/dashboards-external
+            - name: dashboards-minecraft
+              mountPath: /var/lib/grafana/dashboards-minecraft
             - name: data
               mountPath: /var/lib/grafana
           readinessProbe:
@@ -398,8 +410,9 @@ spec:
                   name: grafana-dashboards-host-node
               - configMap:
                   name: grafana-dashboards-host-cadvisor
-              - configMap:
-                  name: grafana-dashboards-minecraft
+        - name: dashboards-minecraft
+          configMap:
+            name: grafana-dashboards-minecraft
         - name: data
           persistentVolumeClaim:
             claimName: grafana-data
