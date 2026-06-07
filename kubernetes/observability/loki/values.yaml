@@ -156,3 +156,25 @@ enterprise:
 # =============================================================================
 serviceAccount:
   create: true
+
+# Loki self-metrics: expose a ServiceMonitor so kube-prometheus-stack scrapes
+# Loki's own /metrics on the `loki` Service (port 3100, name `http-metrics`).
+# Without this:
+#   - The `LokiDown` alert in prometheus/rules.yaml is vacuous (no `up{job=~".*loki.*"}` series exists).
+#   - The community "Loki Stack Monitoring" dashboard (grafana 14055) shows "No data" on most panels.
+# Chart-rendered loki-gateway / loki-headless Services carry
+# `prometheus.io/service-monitor: "false"` and are auto-excluded by the
+# ServiceMonitor's matchExpressions, so this only targets the SingleBinary pod.
+# Defensive `keep` relabel pins the scrape to the `loki` Service name in case a
+# future chart version stops short-circuiting the sibling Services.
+# Other monitoring.* subkeys intentionally left at their defaults:
+#   - rules.enabled: false        — our own prometheus/rules.yaml owns LokiDown
+#   - dashboards.enabled: false   — we already provision grafana 14055 ourselves
+#   - selfMonitoring.enabled: false — deprecated grafana-agent path
+monitoring:
+  serviceMonitor:
+    enabled: true
+    relabelings:
+      - action: keep
+        sourceLabels: [__meta_kubernetes_service_name]
+        regex: loki
