@@ -395,7 +395,9 @@ spec:
               - configMap:
                   name: grafana-dashboards-compute
               - configMap:
-                  name: grafana-dashboards-host
+                  name: grafana-dashboards-host-node
+              - configMap:
+                  name: grafana-dashboards-host-cadvisor
               - configMap:
                   name: grafana-dashboards-minecraft
         - name: data
