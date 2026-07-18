@@ -151,6 +151,7 @@ data:
   plex-container: "https://raw.githubusercontent.com/timothystewart6/plex-monitoring-stack/5de53e45ec10956f179a027c3d9279c82fdd529c/grafana/provisioning/dashboards/container.json"
   plex-thermals: "https://raw.githubusercontent.com/timothystewart6/plex-monitoring-stack/5de53e45ec10956f179a027c3d9279c82fdd529c/grafana/provisioning/dashboards/thermals.json"
   plex-media-server: "https://raw.githubusercontent.com/timothystewart6/plex-monitoring-stack/5de53e45ec10956f179a027c3d9279c82fdd529c/grafana/provisioning/dashboards/media-server.json"
+  jellyfin: "https://raw.githubusercontent.com/rebelcore/jellyfin_grafana/d544c799c497eda58c704aca6e045a5de9eeb73f/dashboards/jellyfin.json"
 ---
 # Datasource overrides for external dashboards. Each key must match a
 # dashboard name from the registry above. Values are find=replace pairs
@@ -245,6 +246,12 @@ data:
     .templating.list |= map(if .name == "datasource" then .current.value = "prometheus-watchtower" | .current.text = "Prometheus - Watchtower" else . end) |
     .tags = ["plex", "media"] |
     .uid = "plex-media-server" |
+    .refresh = "1m"
+  # Jellyfin dashboard panels use type-only datasource refs -> Grafana's default
+  # (Prometheus - K8s), where the jellyfin metrics live. So no datasource remap
+  # is needed; just tag + set a refresh interval.
+  jellyfin: |
+    .tags = ["jellyfin", "media"] |
     .refresh = "1m"
 ---
 apiVersion: apps/v1
