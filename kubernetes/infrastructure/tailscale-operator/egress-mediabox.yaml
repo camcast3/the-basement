@@ -1,0 +1,47 @@
+# Tailscale egress proxy — mediabox VM (Jellyfin, on pvebeast)
+# Bridges in-cluster Prometheus to the mediabox VM's Tailscale IP so it can
+# scrape the Jellyfin/host exporters without exposing any ports publicly.
+# Mirrors egress-lobby.yaml / egress-c2e2.yaml.
+#
+# Ports exposed:
+#   9100 — node-exporter
+#   8080 — cadvisor
+#   9594 — jellyfin-exporter (rebelcore/jellyfin_exporter)
+#   9080 — promtail
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: ts-mediabox-proxy
+  namespace: tailscale
+  labels:
+    app.kubernetes.io/name: ts-mediabox-proxy
+    app.kubernetes.io/part-of: jellyfin-monitoring
+  annotations:
+    # Tailscale operator: route to this tailnet MagicDNS name. mediabox runs
+    # Tailscale as a Docker sidecar (TS_HOSTNAME=mediabox); the Jellyfin/host
+    # exporters share its netns.
+    tailscale.com/tailnet-fqdn: "mediabox.tail042ec7.ts.net"
+    prometheus.io/scrape: "true"
+    prometheus.io/port: "9100"
+spec:
+  type: ExternalName
+  # The operator replaces this with a ClusterIP once the proxy pod is ready.
+  externalName: placeholder.tailscale.svc.cluster.local
+  ports:
+    - name: node-exporter
+      port: 9100
+      targetPort: 9100
+      protocol: TCP
+    - name: cadvisor
+      port: 8080
+      targetPort: 8080
+      protocol: TCP
+    - name: jellyfin-exporter
+      port: 9594
+      targetPort: 9594
+      protocol: TCP
+    - name: promtail
+      port: 9080
+      targetPort: 9080
+      protocol: TCP

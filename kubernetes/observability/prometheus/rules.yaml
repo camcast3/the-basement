@@ -524,6 +524,17 @@ data:
               summary: "Minecraft C2E2 exporter down ({{ $labels.job_type }})"
               description: "{{ $labels.job_type }} on mc-c2e2 has been unreachable for 10 minutes."
 
+          # up{job="minecraft-c2e2"} only covers exporter/host reachability;
+          # this catches a game-server crash while the VM stays up (mc-monitor SLP probe).
+          - alert: MinecraftC2E2ServerDown
+            expr: minecraft_status_healthy{job="minecraft-c2e2"} == 0
+            for: 10m
+            labels:
+              severity: warning
+            annotations:
+              summary: "Minecraft C2E2 server not responding"
+              description: "Craft-to-Exile-2 has failed Server List Ping (mc-monitor) for 10 minutes. Players cannot connect even though the host and its exporters may still be reachable."
+
       - name: minecraft.info
         rules:
           # BungeeCord exporter is split into its own scrape job because
@@ -539,3 +550,25 @@ data:
             annotations:
               summary: "BungeeCord exporter unreachable for 30m"
               description: "BungeeCord Prometheus exporter on mc-lobby has been unreachable for 30 minutes. Known-flaky target (see issue #55)."
+
+  jellyfin-alerts.yml: |
+    groups:
+      - name: jellyfin.warning
+        rules:
+          - alert: JellyfinExporterDown
+            expr: up{job="jellyfin", job_type="jellyfin-exporter"} == 0
+            for: 10m
+            labels:
+              severity: warning
+            annotations:
+              summary: "Jellyfin exporter down on {{ $labels.instance }}"
+              description: "The jellyfin-exporter on mediabox has been unreachable for 10 minutes. Check the mediabox VM + Tailscale egress proxy."
+
+          - alert: JellyfinServerOffline
+            expr: jellyfin_up == 0
+            for: 10m
+            labels:
+              severity: warning
+            annotations:
+              summary: "Jellyfin server offline on {{ $labels.instance }}"
+              description: "Jellyfin reports not running (jellyfin_up == 0) for 10 minutes."

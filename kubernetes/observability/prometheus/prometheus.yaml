@@ -254,6 +254,30 @@ data:
               # $application dropdown so the dashboard has data.
               application: minecraft-c2e2
 
+      # Jellyfin media server VM (mediabox on pvebeast) — via Tailscale egress proxy
+      - job_name: jellyfin
+        static_configs:
+          - targets:
+              - ts-mediabox-proxy.tailscale.svc:9100
+            labels:
+              instance: mediabox
+              job_type: node-exporter
+          - targets:
+              - ts-mediabox-proxy.tailscale.svc:8080
+            labels:
+              instance: mediabox
+              job_type: cadvisor
+          - targets:
+              - ts-mediabox-proxy.tailscale.svc:9594
+            labels:
+              instance: mediabox
+              job_type: jellyfin-exporter
+          - targets:
+              - ts-mediabox-proxy.tailscale.svc:9080
+            labels:
+              instance: mediabox
+              job_type: promtail
+
       # Blackbox exporter — synthetic probes (TCP / DNS / HTTP)
       # Confirms the Minecraft port is listening on mc.negativezone.cc,
       # plus DNS resolution and HTTP reachability checks.
