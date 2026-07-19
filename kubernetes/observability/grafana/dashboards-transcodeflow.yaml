@@ -1,0 +1,97 @@
+# TranscodeFlow Overview dashboard — reused from camcast3/homelab
+# (transcodebox/monitoring/grafana/dashboards/transcodeflow-overview.json).
+# Panel datasources are repointed to the cluster Prometheus (uid: prometheus)
+# and Loki (uid: loki). Metrics arrive via the transcodebox-federate scrape job.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: grafana-dashboards-transcodeflow
+  namespace: monitoring
+  labels:
+    app.kubernetes.io/name: grafana
+data:
+  transcodeflow-overview.json: |
+    {
+      "uid": "transcodeflow-overview",
+      "title": "TranscodeFlow Overview",
+      "schemaVersion": 39,
+      "editable": true,
+      "refresh": "30s",
+      "timezone": "browser",
+      "tags": ["transcodeflow", "transcodebox"],
+      "annotations": { "list": [] },
+      "time": { "from": "now-6h", "to": "now" },
+      "panels": [
+        {
+          "id": 1,
+          "type": "stat",
+          "title": "Queue depth (stream)",
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "gridPos": { "h": 6, "w": 6, "x": 0, "y": 0 },
+          "targets": [
+            { "expr": "max(transcodeflow_queue_depth{kind=\"stream\"})", "refId": "A" }
+          ]
+        },
+        {
+          "id": 2,
+          "type": "stat",
+          "title": "In-flight (pending)",
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "gridPos": { "h": 6, "w": 6, "x": 6, "y": 0 },
+          "targets": [
+            { "expr": "max(transcodeflow_queue_depth{kind=\"pending\"})", "refId": "A" }
+          ]
+        },
+        {
+          "id": 3,
+          "type": "timeseries",
+          "title": "Jobs processed / min by status",
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "gridPos": { "h": 6, "w": 12, "x": 12, "y": 0 },
+          "targets": [
+            { "expr": "sum by (status) (rate(transcodeflow_jobs_processed_total[5m])) * 60", "legendFormat": "{{status}}", "refId": "A" }
+          ]
+        },
+        {
+          "id": 4,
+          "type": "timeseries",
+          "title": "Transcode duration (p50/p95)",
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "gridPos": { "h": 8, "w": 12, "x": 0, "y": 6 },
+          "targets": [
+            { "expr": "histogram_quantile(0.50, sum(rate(transcodeflow_transcode_duration_seconds_bucket[10m])) by (le))", "legendFormat": "p50", "refId": "A" },
+            { "expr": "histogram_quantile(0.95, sum(rate(transcodeflow_transcode_duration_seconds_bucket[10m])) by (le))", "legendFormat": "p95", "refId": "B" }
+          ]
+        },
+        {
+          "id": 5,
+          "type": "timeseries",
+          "title": "Conformance decisions / min",
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "gridPos": { "h": 8, "w": 12, "x": 12, "y": 6 },
+          "targets": [
+            { "expr": "sum by (decision) (rate(transcodeflow_conformance_decisions_total[5m])) * 60", "legendFormat": "{{decision}}", "refId": "A" }
+          ]
+        },
+        {
+          "id": 6,
+          "type": "timeseries",
+          "title": "Scan outcomes / min",
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "gridPos": { "h": 8, "w": 12, "x": 0, "y": 14 },
+          "targets": [
+            { "expr": "sum by (result) (rate(transcodeflow_scan_files_total[5m])) * 60", "legendFormat": "{{result}}", "refId": "A" }
+          ]
+        },
+        {
+          "id": 7,
+          "type": "logs",
+          "title": "Logs",
+          "datasource": { "type": "loki", "uid": "loki" },
+          "gridPos": { "h": 8, "w": 12, "x": 12, "y": 14 },
+          "targets": [
+            { "expr": "{service=~\"api|worker|scanner\"}", "refId": "A" }
+          ]
+        }
+      ]
+    }

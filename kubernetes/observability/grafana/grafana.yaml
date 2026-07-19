@@ -410,6 +410,8 @@ spec:
               - configMap:
                   name: grafana-dashboards-homelab
               - configMap:
+                  name: grafana-dashboards-transcodeflow
+              - configMap:
                   name: grafana-dashboards-logs
               - configMap:
                   name: grafana-dashboards-compute
