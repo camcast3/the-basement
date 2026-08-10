@@ -572,3 +572,45 @@ data:
             annotations:
               summary: "Jellyfin server offline on {{ $labels.instance }}"
               description: "Jellyfin reports not running (jellyfin_up == 0) for 10 minutes."
+
+  transcodeflow-alerts.yml: |
+    groups:
+      - name: transcodeflow.warning
+        rules:
+          - alert: TranscodeboxPrometheusDown
+            expr: up{instance="transcodebox"} == 0
+            for: 10m
+            labels:
+              severity: warning
+            annotations:
+              summary: "transcodebox Prometheus unreachable"
+              description: "The federated transcodebox Prometheus (192.168.3.67:9091) has been unreachable for 10 minutes. Check the transcodebox VM (pvebeast VM 9003) and the DMZ VLAN allow to :9091."
+
+          - alert: TranscodeflowPostgresDown
+            expr: pg_up{service="transcodeflow"} == 0
+            for: 10m
+            labels:
+              severity: warning
+            annotations:
+              summary: "transcodeflow Postgres down"
+              description: "pg_up == 0 for the transcodeflow stack for 10 minutes. The api/scanner/workers cannot persist job state."
+
+          - alert: TranscodeflowRedisDown
+            expr: redis_up{service="transcodeflow"} == 0
+            for: 10m
+            labels:
+              severity: warning
+            annotations:
+              summary: "transcodeflow Redis down"
+              description: "redis_up == 0 for the transcodeflow stack for 10 minutes. The job stream is unavailable, so workers cannot dequeue."
+
+      - name: transcodeflow.info
+        rules:
+          - alert: TranscodeflowWorkersStuck
+            expr: max(transcodeflow_queue_depth{kind="pending"}) > 0 and sum(rate(transcodeflow_transcode_duration_seconds_count[30m])) == 0
+            for: 30m
+            labels:
+              severity: info
+            annotations:
+              summary: "transcodeflow workers appear stuck"
+              description: "There is pending work (transcodeflow_queue_depth{kind=\"pending\"} > 0) but no transcode has completed in 30 minutes. Workers may be stuck or the AV1 VAAPI encode is failing."

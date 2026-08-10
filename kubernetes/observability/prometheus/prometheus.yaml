@@ -337,6 +337,22 @@ data:
             labels:
               cluster: proxmox-ceph
 
+      # transcodebox (transcodeflow AV1 stack on pvebeast VM 9003) — federated from
+      # its self-contained Prometheus, which scrapes api/scanner/worker-1..4 plus the
+      # postgres/redis exporters. Every transcodebox series carries service=transcodeflow,
+      # so a single matcher captures the whole stack. LAN-direct like the ceph job above
+      # (needs the DMZ VLAN allow to 192.168.3.67:9091).
+      - job_name: transcodebox-federate
+        honor_labels: true
+        metrics_path: /federate
+        params:
+          'match[]':
+            - '{service="transcodeflow"}'
+        static_configs:
+          - targets: ["192.168.3.67:9091"]
+            labels:
+              instance: transcodebox
+
       # Cilium agent metrics(DaemonSet on every node)
       - job_name: cilium-agent
         kubernetes_sd_configs:
